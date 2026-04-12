@@ -1,4 +1,4 @@
-using KennelExperiment.Components;
+using KennelTrace.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -6,7 +6,7 @@ Its first goal is not flashy automation. Its first goal is to replace Word-based
 
 ## Current status
 
-This repository currently contains the planning and design package for the application. The production codebase has not been scaffolded yet.
+This repository now contains the initial scaffold for the application alongside the planning and design package.
 
 What is already defined:
 
@@ -19,6 +19,9 @@ What is already defined:
 - import and migration approach
 - acceptance criteria
 - phased development plan
+- Blazor Server web host scaffold
+- modular monolith solution structure under `src/` and `tests/`
+- validated solution-level build and test commands
 
 ## Why this project exists
 
@@ -57,6 +60,16 @@ The planning docs currently recommend:
 - SQL Server
 - modular monolith architecture
 - on-prem / internal deployment posture
+
+## Build and test commands
+
+Validated in this repository:
+
+- `dotnet restore KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `dotnet test KennelTrace.sln`
+
+If `dotnet` is not on `PATH` in the current shell on this machine, the validated SDK path is `C:\Users\Mark\.dotnet\dotnet.exe`.
 
 ## Core modeling rules
 
@@ -161,4 +174,4 @@ Do not start by building:
 
 ## Next step
 
-The recommended next implementation milestone is to scaffold the solution and lock the canonical domain vocabulary, location and link catalogs, and natural keys before starting UI work.
+The recommended next implementation milestone is to lock the canonical domain vocabulary, location and link catalogs, and natural keys before starting persistence or feature work.

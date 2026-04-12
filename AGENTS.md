@@ -14,7 +14,7 @@ The first goal is not flashy automation. The first goal is to replace Word-based
 
 ## Current repository state
 
-This repository currently starts as a planning and design package. Unless code files clearly exist, do **not** assume a scaffolded solution, migrations, CI pipeline, or validated run commands already exist.
+This repository now includes an initial scaffolded solution plus the planning and design package. Do **not** assume migrations, CI, or feature-complete workflows already exist unless code and commands clearly support them.
 
 Rules for working in this repo:
 
@@ -53,16 +53,13 @@ When code and tests exist, keep them aligned with the acceptance criteria and do
 
 ## Build and test commands
 
-There is **no authoritative application build/test command yet** until the solution is scaffolded.
+Authoritative commands for the current scaffold are:
 
-Once implementation exists, document and verify the real commands here and in `README.md`, for example:
+- `dotnet restore KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `dotnet test KennelTrace.sln`
 
-- restore
-- build
-- test
-- database migration/update workflow
-
-Until then, do not invent a working command set.
+If `dotnet` is not on `PATH` in the current shell on this machine, the validated SDK path is `C:\Users\Mark\.dotnet\dotnet.exe`.
 
 ## Non-negotiable domain rules
 
