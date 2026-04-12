@@ -2,16 +2,6 @@ namespace KennelTrace.Domain.Common;
 
 public static class Guard
 {
-    public static Guid RequiredId(Guid value, string paramName)
-    {
-        if (value == Guid.Empty)
-        {
-            throw new DomainValidationException($"{paramName} is required.");
-        }
-
-        return value;
-    }
-
     public static string RequiredText(string? value, string paramName)
     {
         if (string.IsNullOrWhiteSpace(value))

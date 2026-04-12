@@ -5,3 +5,5 @@ riderModule.iml
 /_ReSharper.Caches/
 /.idea/.idea.KennelExperiment/.idea/projectSettingsUpdater.xml
 /.idea/.idea.KennelExperiment/.idea/workspace.xml
+/.tools/
+/.idea/.idea.KennelTrace/.idea/dataSources.xml

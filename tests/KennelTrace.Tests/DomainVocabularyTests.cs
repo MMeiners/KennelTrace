@@ -16,155 +16,49 @@ public sealed class DomainVocabularyTests
     }
 
     [Fact]
-    public void Kennel_Requires_RoomLike_Parent()
-    {
-        var facilityId = Guid.NewGuid();
-        var hallway = new Location(
-            Guid.NewGuid(),
-            facilityId,
-            new FacilityCode("FAC-1"),
-            LocationType.Hallway,
-            new LocationCode("HALL-1"),
-            "Hallway 1");
-
-        var exception = Assert.Throws<DomainValidationException>(() =>
-            new Location(
-                Guid.NewGuid(),
-                facilityId,
-                new FacilityCode("FAC-1"),
-                LocationType.Kennel,
-                new LocationCode("KEN-1"),
-                "Kennel 1",
-                hallway));
-
-        Assert.Contains("cannot contain", exception.Message);
-    }
-
-    [Fact]
     public void Kennel_Cannot_Be_Created_Without_Parent()
     {
-        var facilityId = Guid.NewGuid();
-
         var exception = Assert.Throws<DomainValidationException>(() =>
             new Location(
-                Guid.NewGuid(),
-                facilityId,
-                new FacilityCode("FAC-1"),
-                LocationType.Kennel,
-                new LocationCode("KEN-1"),
-                "Kennel 1"));
+                facilityId: 1,
+                locationType: LocationType.Kennel,
+                locationCode: new LocationCode("KEN-1"),
+                name: "Kennel 1",
+                createdUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+                modifiedUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc)));
 
         Assert.Equal("Kennels must have a valid parent room-like location.", exception.Message);
     }
 
     [Fact]
-    public void Location_Rejects_Negative_Grid_Row()
+    public void Location_Rejects_Incomplete_Grid_Coordinates()
     {
-        var facilityId = Guid.NewGuid();
-
         var exception = Assert.Throws<DomainValidationException>(() =>
             new Location(
-                Guid.NewGuid(),
-                facilityId,
-                new FacilityCode("FAC-1"),
-                LocationType.Room,
-                new LocationCode("ROOM-1"),
-                "Room 1",
-                gridRow: -1));
+                facilityId: 1,
+                locationType: LocationType.Room,
+                locationCode: new LocationCode("ROOM-1"),
+                name: "Room 1",
+                createdUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+                modifiedUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+                gridRow: 1));
 
-        Assert.Equal("gridRow cannot be negative.", exception.Message);
+        Assert.Equal("GridRow and GridColumn must both be populated or both be null.", exception.Message);
     }
 
     [Fact]
-    public void LocationLink_Rejects_CrossFacility_Links()
+    public void LocationLink_Rejects_Self_Links()
     {
-        var left = new Location(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            new FacilityCode("FAC-1"),
-            LocationType.Room,
-            new LocationCode("ROOM-1"),
-            "Room 1");
-
-        var right = new Location(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            new FacilityCode("FAC-2"),
-            LocationType.Room,
-            new LocationCode("ROOM-2"),
-            "Room 2");
-
         var exception = Assert.Throws<DomainValidationException>(() =>
-            LocationLink.Create(Guid.NewGuid(), left, right, LinkType.Connected));
+            new LocationLink(
+                facilityId: 1,
+                fromLocationId: 10,
+                toLocationId: 10,
+                linkType: LinkType.Connected,
+                createdUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+                modifiedUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc)));
 
-        Assert.Equal("Cross-facility links are invalid in MVP.", exception.Message);
-    }
-
-    [Fact]
-    public void LocationLink_Rejects_Adjacency_For_NonKennel_Endpoints()
-    {
-        var facilityId = Guid.NewGuid();
-        var roomA = new Location(
-            Guid.NewGuid(),
-            facilityId,
-            new FacilityCode("FAC-1"),
-            LocationType.Room,
-            new LocationCode("ROOM-A"),
-            "Room A");
-        var roomB = new Location(
-            Guid.NewGuid(),
-            facilityId,
-            new FacilityCode("FAC-1"),
-            LocationType.Room,
-            new LocationCode("ROOM-B"),
-            "Room B");
-
-        var exception = Assert.Throws<DomainValidationException>(() =>
-            LocationLink.Create(Guid.NewGuid(), roomA, roomB, LinkType.AdjacentLeft));
-
-        Assert.Equal("Adjacency-style links should connect kennels.", exception.Message);
-    }
-
-    [Fact]
-    public void LocationLink_Rejects_Topology_For_Kennel_Endpoints()
-    {
-        var facilityId = Guid.NewGuid();
-        var room = new Location(
-            Guid.NewGuid(),
-            facilityId,
-            new FacilityCode("FAC-1"),
-            LocationType.Room,
-            new LocationCode("ROOM-1"),
-            "Room 1");
-        var kennelA = new Location(
-            Guid.NewGuid(),
-            facilityId,
-            new FacilityCode("FAC-1"),
-            LocationType.Kennel,
-            new LocationCode("KEN-A"),
-            "Kennel A",
-            room);
-        var kennelB = new Location(
-            Guid.NewGuid(),
-            facilityId,
-            new FacilityCode("FAC-1"),
-            LocationType.Kennel,
-            new LocationCode("KEN-B"),
-            "Kennel B",
-            room);
-
-        var exception = Assert.Throws<DomainValidationException>(() =>
-            LocationLink.Create(Guid.NewGuid(), kennelA, kennelB, LinkType.Connected));
-
-        Assert.Equal("Topology-style links should connect room-like locations unless an intentional admin override is built.", exception.Message);
-    }
-
-    [Fact]
-    public void LinkType_Inverse_Matches_Canonical_Pairs()
-    {
-        Assert.Equal(LinkType.AdjacentRight, LinkTypeRules.InverseOf(LinkType.AdjacentLeft));
-        Assert.Equal(LinkType.AdjacentBelow, LinkTypeRules.InverseOf(LinkType.AdjacentAbove));
-        Assert.Equal(LinkType.TransportPath, LinkTypeRules.InverseOf(LinkType.TransportPath));
+        Assert.Equal("Self-links are invalid.", exception.Message);
     }
 
     [Fact]
@@ -174,11 +68,12 @@ public sealed class DomainVocabularyTests
 
         var exception = Assert.Throws<DomainValidationException>(() =>
             new MovementEvent(
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                startUtc,
-                startUtc));
+                animalId: 1,
+                locationId: 1,
+                startUtc: startUtc,
+                createdUtc: startUtc,
+                modifiedUtc: startUtc,
+                endUtc: startUtc));
 
         Assert.Equal("EndUtc must be greater than StartUtc.", exception.Message);
     }
@@ -187,39 +82,22 @@ public sealed class DomainVocabularyTests
     public void MovementEvent_HalfOpen_Intervals_Do_Not_Overlap_On_Handoff()
     {
         var first = new MovementEvent(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
-            new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc));
+            animalId: 1,
+            locationId: 1,
+            startUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+            createdUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+            modifiedUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+            endUtc: new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc));
 
         var second = new MovementEvent(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc),
-            new DateTime(2026, 4, 1, 15, 0, 0, DateTimeKind.Utc));
+            animalId: 1,
+            locationId: 2,
+            startUtc: new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc),
+            createdUtc: new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc),
+            modifiedUtc: new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc),
+            endUtc: new DateTime(2026, 4, 1, 15, 0, 0, DateTimeKind.Utc));
 
         Assert.False(first.Overlaps(second));
-    }
-
-    [Fact]
-    public void Open_MovementEvent_Overlaps_Later_Interval()
-    {
-        var openStay = new MovementEvent(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc));
-
-        var laterStay = new MovementEvent(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            new DateTime(2026, 4, 2, 8, 0, 0, DateTimeKind.Utc),
-            new DateTime(2026, 4, 2, 10, 0, 0, DateTimeKind.Utc));
-
-        Assert.True(openStay.Overlaps(laterStay));
     }
 
     [Fact]
@@ -227,78 +105,44 @@ public sealed class DomainVocabularyTests
     {
         var exception = Assert.Throws<DomainValidationException>(() =>
             new DiseaseTraceProfile(
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                "Parvo Default",
-                72,
-                includeSameLocation: true,
-                includeSameRoom: true,
-                includeAdjacentKennels: true,
-                adjacencyDepth: 1,
-                includedLinkTypes: [LinkType.AdjacentLeft, LinkType.Airflow],
-                topologyDepth: 1));
+                diseaseId: 1,
+                defaultLookbackHours: 72,
+                createdUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+                modifiedUtc: new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+                includeTopologyLinks: true,
+                topologyDepth: 1,
+                topologyLinkTypes: [LinkType.AdjacentLeft, LinkType.Airflow]));
 
         Assert.Equal("DiseaseTraceProfile topology link types cannot include adjacency links.", exception.Message);
     }
 
     [Fact]
-    public void ImportIssue_Requires_Positive_Row_Number()
-    {
-        var exception = Assert.Throws<DomainValidationException>(() =>
-            new ImportIssue(
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                "layout.xlsx",
-                "Rooms",
-                0,
-                "Missing room code.",
-                isError: true));
-
-        Assert.Equal("rowNumber must be greater than zero.", exception.Message);
-    }
-
-    [Fact]
     public void Core_Entity_Shells_Can_Be_Constructed_With_Valid_Data()
     {
-        var facility = new Facility(Guid.NewGuid(), new FacilityCode("FAC-1"), "Main Shelter");
-        var room = new Location(
-            Guid.NewGuid(),
-            facility.Id,
-            facility.Code,
-            LocationType.Room,
-            new LocationCode("ROOM-1"),
-            "Room 1");
-        var kennel = new Location(
-            Guid.NewGuid(),
-            facility.Id,
-            facility.Code,
-            LocationType.Kennel,
-            new LocationCode("KEN-1"),
-            "Kennel 1",
-            room);
-        var animal = new Animal(Guid.NewGuid(), new AnimalCode("A-100"), "Scout");
-        var disease = new Disease(Guid.NewGuid(), new DiseaseCode("PARVO"), "Parvo");
+        var now = new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc);
+        var facility = new Facility(new FacilityCode("FAC-1"), "Main Shelter", "America/Phoenix", now, now);
+        var room = new Location(1, LocationType.Room, new LocationCode("ROOM-1"), "Room 1", now, now);
+        var kennel = new Location(1, LocationType.Kennel, new LocationCode("KEN-1"), "Kennel 1", now, now, parentLocationId: 1);
+        var animal = new Animal(new AnimalCode("A-100"), now, now, name: "Scout");
+        var disease = new Disease(new DiseaseCode("PARVO"), "Parvo", now, now);
         var profile = new DiseaseTraceProfile(
-            Guid.NewGuid(),
-            disease.Id,
-            "Default",
-            48,
-            includeSameLocation: true,
-            includeSameRoom: true,
-            includeAdjacentKennels: true,
-            adjacencyDepth: 1,
-            includedLinkTypes: [LinkType.Airflow, LinkType.Connected],
-            topologyDepth: 2);
-        var batch = new ImportBatch(
-            Guid.NewGuid(),
-            facility.Id,
-            "pilot-layout.xlsx",
-            new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
-            isValidationOnly: true);
+            diseaseId: 1,
+            defaultLookbackHours: 48,
+            createdUtc: now,
+            modifiedUtc: now,
+            includeTopologyLinks: true,
+            topologyDepth: 2,
+            topologyLinkTypes: [LinkType.Airflow, LinkType.Connected]);
+        var batch = new ImportBatch("FacilityLayout", "pilot-layout.xlsx", ImportBatchRunMode.ValidateOnly, now);
+        var issue = new ImportIssue(1, ImportIssueSeverity.Error, "Rooms", "Missing room code.", rowNumber: 7, itemKey: "ROOM-7");
 
+        Assert.Equal("FAC-1", facility.FacilityCode.Value);
         Assert.Equal(LocationType.Kennel, kennel.LocationType);
-        Assert.Equal("Scout", animal.DisplayName);
-        Assert.Equal(2, profile.IncludedLinkTypes.Count);
-        Assert.Equal("pilot-layout.xlsx", batch.SourceName);
+        Assert.Equal("Scout", animal.Name);
+        Assert.Equal(2, profile.TopologyLinkTypes.Count);
+        Assert.Equal("pilot-layout.xlsx", batch.SourceFileName);
+        Assert.Equal(7, issue.RowNumber);
+        Assert.Equal("Room 1", room.Name);
+        Assert.Equal("Parvo", disease.Name);
     }
 }

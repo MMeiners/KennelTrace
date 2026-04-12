@@ -4,94 +4,122 @@ namespace KennelTrace.Domain.Features.Locations;
 
 public sealed class Location
 {
+    private readonly List<Location> _children = [];
+
+    private Location()
+    {
+    }
+
     public Location(
-        Guid id,
-        Guid facilityId,
-        FacilityCode facilityCode,
+        int facilityId,
         LocationType locationType,
-        LocationCode code,
-        string displayName,
-        Location? parentLocation = null,
+        LocationCode locationCode,
+        string name,
+        DateTime createdUtc,
+        DateTime modifiedUtc,
+        int? parentLocationId = null,
         bool isActive = true,
         int? gridRow = null,
         int? gridColumn = null,
-        int? stackLevel = null)
+        int stackLevel = 0,
+        int? displayOrder = null,
+        string? notes = null)
     {
-        Id = Guard.RequiredId(id, nameof(id));
-        FacilityId = Guard.RequiredId(facilityId, nameof(facilityId));
-        FacilityCode = facilityCode;
-        LocationType = locationType;
-        Code = code;
-        DisplayName = Guard.RequiredText(displayName, nameof(displayName));
-        IsActive = isActive;
+        Guard.Against(facilityId <= 0, "facilityId is required.");
 
-        SetGridPlacement(gridRow, gridColumn, stackLevel);
-        SetParent(parentLocation);
+        FacilityId = facilityId;
+        LocationType = locationType;
+        LocationCode = locationCode;
+        Name = Guard.RequiredText(name, nameof(name));
+        CreatedUtc = Guard.RequiredUtc(createdUtc, nameof(createdUtc));
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+        IsActive = isActive;
+        DisplayOrder = displayOrder;
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+
+        SetGridPlacement(gridRow, gridColumn, stackLevel, modifiedUtc);
+        SetParent(parentLocationId, modifiedUtc);
     }
 
-    public Guid Id { get; }
+    public int LocationId { get; private set; }
 
-    public Guid FacilityId { get; }
+    public int FacilityId { get; private set; }
 
-    public FacilityCode FacilityCode { get; }
+    public int? ParentLocationId { get; private set; }
 
-    public LocationType LocationType { get; }
+    public Location? ParentLocation { get; private set; }
 
-    public LocationCode Code { get; }
+    public LocationType LocationType { get; private set; }
 
-    public string DisplayName { get; private set; }
+    public LocationCode LocationCode { get; private set; } = default!;
 
-    public bool IsActive { get; private set; }
-
-    public Guid? ParentLocationId { get; private set; }
+    public string Name { get; private set; } = null!;
 
     public int? GridRow { get; private set; }
 
     public int? GridColumn { get; private set; }
 
-    public int? StackLevel { get; private set; }
+    public int StackLevel { get; private set; }
 
-    public void Rename(string displayName)
+    public int? DisplayOrder { get; private set; }
+
+    public bool IsActive { get; private set; }
+
+    public string? Notes { get; private set; }
+
+    public DateTime CreatedUtc { get; private set; }
+
+    public DateTime ModifiedUtc { get; private set; }
+
+    public IReadOnlyCollection<Location> Children => _children;
+
+    public void Rename(string name, DateTime modifiedUtc)
     {
-        DisplayName = Guard.RequiredText(displayName, nameof(displayName));
+        Name = Guard.RequiredText(name, nameof(name));
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 
-    public void Deactivate()
+    public void AssignParent(int? parentLocationId, DateTime modifiedUtc)
     {
-        IsActive = false;
+        SetParent(parentLocationId, modifiedUtc);
     }
 
-    public void AssignParent(Location parentLocation)
+    public void SetGridPlacement(int? gridRow, int? gridColumn, int stackLevel, DateTime modifiedUtc)
     {
-        SetParent(parentLocation);
-    }
+        Guard.Against((gridRow is null) != (gridColumn is null), "GridRow and GridColumn must both be populated or both be null.");
 
-    public void SetGridPlacement(int? gridRow, int? gridColumn, int? stackLevel)
-    {
         GridRow = gridRow is null ? null : Guard.NonNegative(gridRow.Value, nameof(gridRow));
         GridColumn = gridColumn is null ? null : Guard.NonNegative(gridColumn.Value, nameof(gridColumn));
-        StackLevel = stackLevel is null ? null : Guard.NonNegative(stackLevel.Value, nameof(stackLevel));
+        StackLevel = Guard.NonNegative(stackLevel, nameof(stackLevel));
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 
-    private void SetParent(Location? parentLocation)
+    public void SetDisplayOrder(int? displayOrder, DateTime modifiedUtc)
+    {
+        DisplayOrder = displayOrder;
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
+
+    public void SetNotes(string? notes, DateTime modifiedUtc)
+    {
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
+
+    public void Deactivate(DateTime modifiedUtc)
+    {
+        IsActive = false;
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
+
+    private void SetParent(int? parentLocationId, DateTime modifiedUtc)
     {
         if (LocationType == LocationType.Kennel)
         {
-            Guard.Against(parentLocation is null, "Kennels must have a valid parent room-like location.");
+            Guard.Against(parentLocationId is null, "Kennels must have a valid parent room-like location.");
         }
 
-        if (parentLocation is null)
-        {
-            ParentLocationId = null;
-            return;
-        }
-
-        Guard.Against(parentLocation.Id == Id, "A location cannot be its own parent.");
-        Guard.Against(parentLocation.FacilityId != FacilityId, "Parent and child locations must belong to the same facility.");
-        Guard.Against(
-            !LocationTypeRules.CanContainChild(parentLocation.LocationType, LocationType),
-            $"{parentLocation.LocationType} cannot contain {LocationType} locations.");
-
-        ParentLocationId = parentLocation.Id;
+        ParentLocationId = parentLocationId;
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 }

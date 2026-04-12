@@ -4,41 +4,73 @@ namespace KennelTrace.Domain.Features.Animals;
 
 public sealed class MovementEvent
 {
+    private MovementEvent()
+    {
+    }
+
     public MovementEvent(
-        Guid id,
-        Guid animalId,
-        Guid locationId,
+        int animalId,
+        int locationId,
         DateTime startUtc,
+        DateTime createdUtc,
+        DateTime modifiedUtc,
         DateTime? endUtc = null,
+        string? movementReason = null,
+        SourceType sourceType = SourceType.Manual,
+        string? recordedByUserId = null,
         string? notes = null)
     {
-        Id = Guard.RequiredId(id, nameof(id));
-        AnimalId = Guard.RequiredId(animalId, nameof(animalId));
-        LocationId = Guard.RequiredId(locationId, nameof(locationId));
+        Guard.Against(animalId <= 0, "animalId is required.");
+        Guard.Against(locationId <= 0, "locationId is required.");
+
+        AnimalId = animalId;
+        LocationId = locationId;
         StartUtc = Guard.RequiredUtc(startUtc, nameof(startUtc));
         EndUtc = endUtc is null ? null : Guard.RequiredUtc(endUtc.Value, nameof(endUtc));
         Guard.Against(EndUtc is not null && EndUtc <= StartUtc, "EndUtc must be greater than StartUtc.");
+        MovementReason = string.IsNullOrWhiteSpace(movementReason) ? null : movementReason.Trim();
+        SourceType = sourceType;
+        RecordedByUserId = string.IsNullOrWhiteSpace(recordedByUserId) ? null : recordedByUserId.Trim();
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        CreatedUtc = Guard.RequiredUtc(createdUtc, nameof(createdUtc));
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 
-    public Guid Id { get; }
+    public long MovementEventId { get; private set; }
 
-    public Guid AnimalId { get; }
+    public int AnimalId { get; private set; }
 
-    public Guid LocationId { get; }
+    public int LocationId { get; private set; }
 
-    public DateTime StartUtc { get; }
+    public DateTime StartUtc { get; private set; }
 
     public DateTime? EndUtc { get; private set; }
 
-    public string? Notes { get; }
+    public string? MovementReason { get; private set; }
+
+    public SourceType SourceType { get; private set; }
+
+    public string? RecordedByUserId { get; private set; }
+
+    public string? Notes { get; private set; }
+
+    public DateTime CreatedUtc { get; private set; }
+
+    public DateTime ModifiedUtc { get; private set; }
 
     public bool IsOpen => EndUtc is null;
 
-    public void Close(DateTime endUtc)
+    public void Close(DateTime endUtc, DateTime modifiedUtc)
     {
         EndUtc = Guard.RequiredUtc(endUtc, nameof(endUtc));
         Guard.Against(EndUtc <= StartUtc, "EndUtc must be greater than StartUtc.");
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
+
+    public void UpdateNotes(string? notes, DateTime modifiedUtc)
+    {
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 
     public bool Overlaps(MovementEvent other)

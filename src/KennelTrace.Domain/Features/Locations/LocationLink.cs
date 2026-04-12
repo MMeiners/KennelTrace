@@ -4,65 +4,70 @@ namespace KennelTrace.Domain.Features.Locations;
 
 public sealed class LocationLink
 {
-    private LocationLink(
-        Guid id,
-        Guid facilityId,
-        LinkType linkType,
-        Guid fromLocationId,
-        Guid toLocationId,
-        string? notes)
+    private LocationLink()
     {
-        Id = id;
-        FacilityId = facilityId;
-        LinkType = linkType;
-        FromLocationId = fromLocationId;
-        ToLocationId = toLocationId;
-        Notes = notes;
     }
 
-    public Guid Id { get; }
-
-    public Guid FacilityId { get; }
-
-    public LinkType LinkType { get; }
-
-    public Guid FromLocationId { get; }
-
-    public Guid ToLocationId { get; }
-
-    public string? Notes { get; }
-
-    public static LocationLink Create(
-        Guid id,
-        Location fromLocation,
-        Location toLocation,
+    public LocationLink(
+        int facilityId,
+        int fromLocationId,
+        int toLocationId,
         LinkType linkType,
+        DateTime createdUtc,
+        DateTime modifiedUtc,
+        bool isActive = true,
+        SourceType sourceType = SourceType.Manual,
+        string? sourceReference = null,
         string? notes = null)
     {
-        Guard.RequiredId(id, nameof(id));
-        Guard.Against(fromLocation.Id == toLocation.Id, "Self-links are invalid.");
-        Guard.Against(fromLocation.FacilityId != toLocation.FacilityId, "Cross-facility links are invalid in MVP.");
-        Guard.Against(!fromLocation.IsActive || !toLocation.IsActive, "Location links require active endpoints.");
+        Guard.Against(facilityId <= 0, "facilityId is required.");
+        Guard.Against(fromLocationId <= 0, "fromLocationId is required.");
+        Guard.Against(toLocationId <= 0, "toLocationId is required.");
+        Guard.Against(fromLocationId == toLocationId, "Self-links are invalid.");
 
-        if (LinkTypeRules.IsAdjacency(linkType))
-        {
-            Guard.Against(
-                fromLocation.LocationType != LocationType.Kennel || toLocation.LocationType != LocationType.Kennel,
-                "Adjacency-style links should connect kennels.");
-        }
-        else
-        {
-            Guard.Against(
-                fromLocation.LocationType == LocationType.Kennel || toLocation.LocationType == LocationType.Kennel,
-                "Topology-style links should connect room-like locations unless an intentional admin override is built.");
-        }
+        FacilityId = facilityId;
+        FromLocationId = fromLocationId;
+        ToLocationId = toLocationId;
+        LinkType = linkType;
+        IsActive = isActive;
+        SourceType = sourceType;
+        SourceReference = string.IsNullOrWhiteSpace(sourceReference) ? null : sourceReference.Trim();
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        CreatedUtc = Guard.RequiredUtc(createdUtc, nameof(createdUtc));
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
 
-        return new LocationLink(
-            id,
-            fromLocation.FacilityId,
-            linkType,
-            fromLocation.Id,
-            toLocation.Id,
-            string.IsNullOrWhiteSpace(notes) ? null : notes.Trim());
+    public int LocationLinkId { get; private set; }
+
+    public int FacilityId { get; private set; }
+
+    public int FromLocationId { get; private set; }
+
+    public int ToLocationId { get; private set; }
+
+    public LinkType LinkType { get; private set; }
+
+    public bool IsActive { get; private set; }
+
+    public SourceType SourceType { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
+    public string? Notes { get; private set; }
+
+    public DateTime CreatedUtc { get; private set; }
+
+    public DateTime ModifiedUtc { get; private set; }
+
+    public void Deactivate(DateTime modifiedUtc)
+    {
+        IsActive = false;
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
+
+    public void UpdateNotes(string? notes, DateTime modifiedUtc)
+    {
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 }

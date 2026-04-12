@@ -4,38 +4,61 @@ namespace KennelTrace.Domain.Features.Imports;
 
 public sealed class ImportBatch
 {
-    public ImportBatch(
-        Guid id,
-        Guid? facilityId,
-        string sourceName,
-        DateTime startedUtc,
-        bool isValidationOnly)
+    private ImportBatch()
     {
-        Id = Guard.RequiredId(id, nameof(id));
-        FacilityId = facilityId;
-        SourceName = Guard.RequiredText(sourceName, nameof(sourceName));
-        StartedUtc = Guard.RequiredUtc(startedUtc, nameof(startedUtc));
-        IsValidationOnly = isValidationOnly;
     }
 
-    public Guid Id { get; }
+    public ImportBatch(
+        string batchType,
+        string sourceFileName,
+        ImportBatchRunMode runMode,
+        DateTime startedUtc,
+        ImportBatchStatus status = ImportBatchStatus.Pending,
+        int? facilityId = null,
+        string? sourceFileHash = null,
+        string? executedByUserId = null,
+        string? summary = null,
+        DateTime? completedUtc = null)
+    {
+        BatchType = Guard.RequiredText(batchType, nameof(batchType));
+        SourceFileName = Guard.RequiredText(sourceFileName, nameof(sourceFileName));
+        RunMode = runMode;
+        StartedUtc = Guard.RequiredUtc(startedUtc, nameof(startedUtc));
+        Status = status;
+        FacilityId = facilityId;
+        SourceFileHash = string.IsNullOrWhiteSpace(sourceFileHash) ? null : sourceFileHash.Trim();
+        ExecutedByUserId = string.IsNullOrWhiteSpace(executedByUserId) ? null : executedByUserId.Trim();
+        Summary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
+        CompletedUtc = completedUtc is null ? null : Guard.RequiredUtc(completedUtc.Value, nameof(completedUtc));
+    }
 
-    public Guid? FacilityId { get; }
+    public long ImportBatchId { get; private set; }
 
-    public string SourceName { get; }
+    public string BatchType { get; private set; } = null!;
 
-    public DateTime StartedUtc { get; }
+    public int? FacilityId { get; private set; }
+
+    public string SourceFileName { get; private set; } = null!;
+
+    public string? SourceFileHash { get; private set; }
+
+    public ImportBatchRunMode RunMode { get; private set; }
+
+    public ImportBatchStatus Status { get; private set; }
+
+    public DateTime StartedUtc { get; private set; }
 
     public DateTime? CompletedUtc { get; private set; }
 
-    public bool IsValidationOnly { get; }
+    public string? ExecutedByUserId { get; private set; }
 
-    public bool Succeeded { get; private set; }
+    public string? Summary { get; private set; }
 
-    public void Complete(DateTime completedUtc, bool succeeded)
+    public void Complete(DateTime completedUtc, ImportBatchStatus status, string? summary = null)
     {
         CompletedUtc = Guard.RequiredUtc(completedUtc, nameof(completedUtc));
         Guard.Against(CompletedUtc < StartedUtc, "CompletedUtc cannot be earlier than StartedUtc.");
-        Succeeded = succeeded;
+        Status = status;
+        Summary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
     }
 }

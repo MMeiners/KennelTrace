@@ -10,6 +10,7 @@
       <Path>.gitignore</Path>
       <Path>AGENTS.md</Path>
       <Path>README.md</Path>
+      <Path>log.md</Path>
     </explicitIncludes>
     <explicitExcludes />
   </component>

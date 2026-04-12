@@ -4,35 +4,39 @@ namespace KennelTrace.Domain.Features.Imports;
 
 public sealed class ImportIssue
 {
-    public ImportIssue(
-        Guid id,
-        Guid importBatchId,
-        string fileName,
-        string sheetName,
-        int rowNumber,
-        string message,
-        bool isError)
+    private ImportIssue()
     {
-        Id = Guard.RequiredId(id, nameof(id));
-        ImportBatchId = Guard.RequiredId(importBatchId, nameof(importBatchId));
-        FileName = Guard.RequiredText(fileName, nameof(fileName));
-        SheetName = Guard.RequiredText(sheetName, nameof(sheetName));
-        RowNumber = Guard.Positive(rowNumber, nameof(rowNumber));
-        Message = Guard.RequiredText(message, nameof(message));
-        IsError = isError;
     }
 
-    public Guid Id { get; }
+    public ImportIssue(
+        long importBatchId,
+        ImportIssueSeverity severity,
+        string sheetName,
+        string message,
+        int? rowNumber = null,
+        string? itemKey = null)
+    {
+        Guard.Against(importBatchId <= 0, "importBatchId is required.");
 
-    public Guid ImportBatchId { get; }
+        ImportBatchId = importBatchId;
+        Severity = severity;
+        SheetName = Guard.RequiredText(sheetName, nameof(sheetName));
+        RowNumber = rowNumber;
+        ItemKey = string.IsNullOrWhiteSpace(itemKey) ? null : itemKey.Trim();
+        Message = Guard.RequiredText(message, nameof(message));
+    }
 
-    public string FileName { get; }
+    public long ImportIssueId { get; private set; }
 
-    public string SheetName { get; }
+    public long ImportBatchId { get; private set; }
 
-    public int RowNumber { get; }
+    public ImportIssueSeverity Severity { get; private set; }
 
-    public string Message { get; }
+    public string SheetName { get; private set; } = null!;
 
-    public bool IsError { get; }
+    public int? RowNumber { get; private set; }
+
+    public string? ItemKey { get; private set; }
+
+    public string Message { get; private set; } = null!;
 }

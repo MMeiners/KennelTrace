@@ -1,3 +1,4 @@
+using KennelTrace.Infrastructure.Persistence;
 using KennelTrace.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -5,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddKennelTraceSqlServer(builder.Configuration);
 
 var app = builder.Build();
 
