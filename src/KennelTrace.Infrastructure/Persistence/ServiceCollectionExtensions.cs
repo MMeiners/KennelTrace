@@ -1,3 +1,4 @@
+using KennelTrace.Infrastructure.Features.Imports;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,10 @@ public static class ServiceCollectionExtensions
 
         services.AddDbContext<KennelTraceDbContext>(options =>
             options.UseSqlServer(connectionString, sqlServer => sqlServer.MigrationsAssembly(typeof(KennelTraceDbContext).Assembly.FullName)));
+        services.AddScoped<IImportBatchLogger, EfCoreImportBatchLogger>();
+        services.AddSingleton<IWorkbookReader, OpenXmlWorkbookReader>();
+        services.AddSingleton<FacilityLayoutImportValidator>();
+        services.AddScoped<FacilityLayoutImportService>();
 
         return services;
     }

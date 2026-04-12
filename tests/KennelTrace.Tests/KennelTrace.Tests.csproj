@@ -26,4 +26,10 @@
     <ProjectReference Include="..\..\src\KennelTrace.Web\KennelTrace.Web.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="import_fixtures\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
