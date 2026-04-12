@@ -1,7 +1,9 @@
 using KennelTrace.Domain.Common;
 using KennelTrace.Domain.Features.Animals;
 using KennelTrace.Domain.Features.Facilities;
+using KennelTrace.Domain.Features.Imports;
 using KennelTrace.Domain.Features.Locations;
+using KennelTrace.Infrastructure.Features.Imports;
 using KennelTrace.Infrastructure.Persistence;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -166,6 +168,94 @@ public sealed class SqlServerPersistenceIntegrationTests : IAsyncLifetime
         Assert.Contains(secondStay.MovementEventId, overlappingIds);
     }
 
+    [Fact]
+    public async Task ValidateOnly_Warning_Workbook_Persists_Batch_And_Issues()
+    {
+        await using var context = CreateContext();
+        var service = CreateImportService(context);
+
+        var result = await service.ValidateAsync(new FacilityLayoutImportRequest(
+            GetFixturePath("PHX_WARN_Layout_20260412_warnings.xlsx"),
+            ExecutedByUserId: "import-tester"));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(3, result.WarningCount);
+        Assert.NotNull(result.ImportBatchId);
+
+        var batch = await context.ImportBatches.SingleAsync(x => x.ImportBatchId == result.ImportBatchId);
+        var issues = await context.ImportIssues
+            .Where(x => x.ImportBatchId == result.ImportBatchId)
+            .OrderBy(x => x.ImportIssueId)
+            .ToListAsync();
+
+        Assert.Equal(ImportBatchRunMode.ValidateOnly, batch.RunMode);
+        Assert.Equal(ImportBatchStatus.Succeeded, batch.Status);
+        Assert.Equal("import-tester", batch.ExecutedByUserId);
+        Assert.Equal(3, issues.Count);
+        Assert.All(issues, x => Assert.Equal(ImportIssueSeverity.Warning, x.Severity));
+    }
+
+    [Fact]
+    public async Task Commit_Mode_Can_Persist_A_Clean_Workbook_And_Batch_Metadata()
+    {
+        await using var context = CreateContext();
+        var service = CreateImportService(context);
+
+        var result = await service.ValidateAsync(new FacilityLayoutImportRequest(
+            GetFixturePath("PHX_MAIN_Layout_20260412.xlsx"),
+            ExecutedByUserId: "import-admin",
+            RunMode: ImportBatchRunMode.Commit));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(0, result.ErrorCount);
+        Assert.NotNull(result.ImportBatchId);
+        Assert.Contains("Commit succeeded", result.DisplayText, StringComparison.Ordinal);
+
+        var workbook = result.Report.Workbook;
+        var facilityCode = workbook.Facilities.Single().FacilityCode;
+        var facility = await context.Facilities.SingleAsync(x => x.FacilityCode == new FacilityCode(facilityCode));
+        var locations = await context.Locations.Where(x => x.FacilityId == facility.FacilityId).ToListAsync();
+        var activeLinks = await context.LocationLinks.Where(x => x.FacilityId == facility.FacilityId && x.IsActive).ToListAsync();
+        var batch = await context.ImportBatches.SingleAsync(x => x.ImportBatchId == result.ImportBatchId);
+
+        Assert.Equal(workbook.Rooms.Count + workbook.Kennels.Count, locations.Count);
+        Assert.Equal(GetExpandedLinkCount(workbook.LocationLinks), activeLinks.Count);
+        Assert.Equal(ImportBatchRunMode.Commit, batch.RunMode);
+        Assert.Equal(ImportBatchStatus.Succeeded, batch.Status);
+        Assert.Equal(facility.FacilityId, batch.FacilityId);
+        Assert.Equal("import-admin", batch.ExecutedByUserId);
+        Assert.Empty(await context.ImportIssues.Where(x => x.ImportBatchId == result.ImportBatchId).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Commit_Mode_ReRun_Is_Idempotent_For_Locations_And_Links()
+    {
+        await using var context = CreateContext();
+        var service = CreateImportService(context);
+        var request = new FacilityLayoutImportRequest(
+            GetFixturePath("PHX_MAIN_Layout_20260412.xlsx"),
+            ExecutedByUserId: "import-admin",
+            RunMode: ImportBatchRunMode.Commit);
+
+        var firstResult = await service.ValidateAsync(request);
+        var firstWorkbook = firstResult.Report.Workbook;
+        var facilityCode = firstWorkbook.Facilities.Single().FacilityCode;
+        var facility = await context.Facilities.SingleAsync(x => x.FacilityCode == new FacilityCode(facilityCode));
+
+        var firstLocationCount = await context.Locations.CountAsync(x => x.FacilityId == facility.FacilityId);
+        var firstTotalLinkCount = await context.LocationLinks.CountAsync(x => x.FacilityId == facility.FacilityId);
+        var firstActiveLinkCount = await context.LocationLinks.CountAsync(x => x.FacilityId == facility.FacilityId && x.IsActive);
+
+        var secondResult = await service.ValidateAsync(request);
+
+        Assert.True(secondResult.IsValid);
+        Assert.Equal(firstLocationCount, await context.Locations.CountAsync(x => x.FacilityId == facility.FacilityId));
+        Assert.Equal(firstTotalLinkCount, await context.LocationLinks.CountAsync(x => x.FacilityId == facility.FacilityId));
+        Assert.Equal(firstActiveLinkCount, await context.LocationLinks.CountAsync(x => x.FacilityId == facility.FacilityId && x.IsActive));
+        Assert.Equal(1, await context.Facilities.CountAsync(x => x.FacilityCode == new FacilityCode(facilityCode)));
+        Assert.Equal(2, await context.ImportBatches.CountAsync());
+    }
+
     private KennelTraceDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<KennelTraceDbContext>()
@@ -181,5 +271,36 @@ public sealed class SqlServerPersistenceIntegrationTests : IAsyncLifetime
         return string.IsNullOrWhiteSpace(configured)
             ? "Server=localhost;Integrated Security=true;Encrypt=False;TrustServerCertificate=true;MultipleActiveResultSets=True"
             : configured;
+    }
+
+    private static FacilityLayoutImportService CreateImportService(KennelTraceDbContext context)
+    {
+        return new FacilityLayoutImportService(
+            new OpenXmlWorkbookReader(),
+            new FacilityLayoutImportValidator(),
+            new EfCoreImportBatchLogger(context),
+            context);
+    }
+
+    private static string GetFixturePath(string fileName) =>
+        Path.Combine(AppContext.BaseDirectory, "import_fixtures", fileName);
+
+    private static int GetExpandedLinkCount(IReadOnlyList<LocationLinkImportRow> links)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var link in links)
+        {
+            seen.Add($"{link.FromLocationCode}->{link.ToLocationCode}/{link.LinkType}");
+
+            if (!link.CreateInverse)
+            {
+                continue;
+            }
+
+            seen.Add($"{link.ToLocationCode}->{link.FromLocationCode}/{LinkTypeRules.InverseOf(link.LinkType)}");
+        }
+
+        return seen.Count;
     }
 }

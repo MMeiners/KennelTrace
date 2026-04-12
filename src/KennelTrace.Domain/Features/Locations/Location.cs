@@ -79,6 +79,27 @@ public sealed class Location
         ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 
+    public void ApplyImport(
+        LocationType locationType,
+        string name,
+        int? parentLocationId,
+        bool isActive,
+        int? gridRow,
+        int? gridColumn,
+        int stackLevel,
+        int? displayOrder,
+        string? notes,
+        DateTime modifiedUtc)
+    {
+        LocationType = locationType;
+        Name = Guard.RequiredText(name, nameof(name));
+        IsActive = isActive;
+        DisplayOrder = displayOrder;
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        SetGridPlacement(gridRow, gridColumn, stackLevel, modifiedUtc);
+        SetParent(parentLocationId, modifiedUtc);
+    }
+
     public void AssignParent(int? parentLocationId, DateTime modifiedUtc)
     {
         SetParent(parentLocationId, modifiedUtc);

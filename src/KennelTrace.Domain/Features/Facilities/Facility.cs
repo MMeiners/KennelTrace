@@ -48,6 +48,15 @@ public sealed class Facility
         ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 
+    public void ApplyImport(string name, string timeZoneId, bool isActive, string? notes, DateTime modifiedUtc)
+    {
+        Name = Guard.RequiredText(name, nameof(name));
+        TimeZoneId = Guard.RequiredText(timeZoneId, nameof(timeZoneId));
+        IsActive = isActive;
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
+
     public void UpdateTimeZone(string timeZoneId, DateTime modifiedUtc)
     {
         TimeZoneId = Guard.RequiredText(timeZoneId, nameof(timeZoneId));

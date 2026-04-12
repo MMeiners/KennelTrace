@@ -54,6 +54,16 @@ public sealed class ImportBatch
 
     public string? Summary { get; private set; }
 
+    public void AssociateFacility(int? facilityId)
+    {
+        if (facilityId is not null)
+        {
+            Guard.Against(facilityId <= 0, "facilityId must be greater than zero when provided.");
+        }
+
+        FacilityId = facilityId;
+    }
+
     public void Complete(DateTime completedUtc, ImportBatchStatus status, string? summary = null)
     {
         CompletedUtc = Guard.RequiredUtc(completedUtc, nameof(completedUtc));
