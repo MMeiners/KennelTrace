@@ -5,6 +5,7 @@
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
+      <PackageReference Include="MudBlazor" Version="9.3.0" />
       <ProjectReference Include="..\KennelTrace.Domain\KennelTrace.Domain.csproj" />
       <ProjectReference Include="..\KennelTrace.Infrastructure\KennelTrace.Infrastructure.csproj" />
     </ItemGroup>

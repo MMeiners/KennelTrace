@@ -1,0 +1,46 @@
+@page "/mudblazor-test"
+@rendermode InteractiveServer
+
+<PageTitle>MudBlazor Test</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">MudBlazor Test</MudText>
+
+<MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="IncrementClicks">
+        Click me
+    </MudButton>
+    <MudText Typo="Typo.body1">Button clicks: @clickCount</MudText>
+</MudStack>
+
+<MudPaper Class="pa-4">
+    <MudTable Items="kennelRows" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Kennel</MudTh>
+            <MudTh>Room</MudTh>
+            <MudTh>Status</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Kennel">@context.KennelCode</MudTd>
+            <MudTd DataLabel="Room">@context.RoomName</MudTd>
+            <MudTd DataLabel="Status">@context.Status</MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private int clickCount;
+
+    private readonly IReadOnlyList<KennelRow> kennelRows =
+    [
+        new("A-101", "Adoption Room A", "Vacant"),
+        new("A-102", "Adoption Room A", "Occupied"),
+        new("ISO-1", "Isolation", "Cleaning")
+    ];
+
+    private void IncrementClicks()
+    {
+        clickCount++;
+    }
+
+    private sealed record KennelRow(string KennelCode, string RoomName, string Status);
+}

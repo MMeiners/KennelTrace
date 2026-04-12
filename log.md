@@ -23,3 +23,9 @@ Added validate-only batch logging without committing domain changes. The new imp
 Extended the import pipeline with commit mode for the four-tab pilot workbook shape: `Facilities`, `Rooms`, `Kennels`, and `LocationLinks`. Commit mode now validates first, persists `ImportBatch` and `ImportIssue` rows, upserts facilities by `FacilityCode`, upserts rooms and kennels as `Location` records by natural key within the facility, and reconciles facility location links deterministically with `CreateInverse` expansion and inactive-history-friendly replacement behavior.
 
 Added SQL Server integration coverage for validate-only issue persistence, successful clean workbook commit, and idempotent rerun behavior using the pilot fixture `PHX_MAIN_Layout_20260412.xlsx`. Verified the change with `dotnet build KennelTrace.sln /p:UseSharedCompilation=false` and `dotnet test KennelTrace.sln /p:UseSharedCompilation=false`, both of which passed in the current repository.
+
+## 2026-04-12 16:32:33 -07:00
+
+Added MudBlazor to `KennelTrace.Web` using the manual installation path. This registered `AddMudServices()`, added the MudBlazor CSS and JS assets in the app root, placed the required theme/popover/dialog/snackbar providers in the main layout, and introduced a single interactive `/mudblazor-test` page with a `MudButton` and `MudTable` plus a nav link to reach it.
+
+Verified the integration with `dotnet build KennelTrace.sln` and a local `dotnet run --project src\KennelTrace.Web\KennelTrace.Web.csproj --launch-profile https --no-build` smoke test. The app started successfully, `/_content/MudBlazor/MudBlazor.min.css` returned `200`, and the test page rendered the expected MudBlazor markup.

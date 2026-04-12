@@ -1,11 +1,13 @@
 using KennelTrace.Infrastructure.Persistence;
 using KennelTrace.Web.Components;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddMudServices();
 builder.Services.AddKennelTraceSqlServer(builder.Configuration);
 
 var app = builder.Build();
