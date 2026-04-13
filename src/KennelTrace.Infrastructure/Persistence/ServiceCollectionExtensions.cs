@@ -1,3 +1,4 @@
+using KennelTrace.Infrastructure.Features.Facilities.FacilityMap;
 using KennelTrace.Infrastructure.Features.Imports;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -17,6 +18,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWorkbookReader, OpenXmlWorkbookReader>();
         services.AddSingleton<FacilityLayoutImportValidator>();
         services.AddScoped<FacilityLayoutImportService>();
+        services.AddScoped<FacilityMapReadService>();
 
         return services;
     }
