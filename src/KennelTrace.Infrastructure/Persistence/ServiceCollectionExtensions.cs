@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<FacilityLayoutImportValidator>();
         services.AddScoped<FacilityLayoutImportService>();
         services.AddScoped<FacilityMapReadService>();
+        services.AddScoped<IFacilityMapReadService>(serviceProvider => serviceProvider.GetRequiredService<FacilityMapReadService>());
 
         return services;
     }

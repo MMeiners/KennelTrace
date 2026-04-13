@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KennelTrace.Infrastructure.Features.Facilities.FacilityMap;
 
-public sealed class FacilityMapReadService(KennelTraceDbContext dbContext)
+public sealed class FacilityMapReadService(KennelTraceDbContext dbContext) : IFacilityMapReadService
 {
     public async Task<IReadOnlyList<FacilityMapFacilityOption>> ListFacilitiesAsync(CancellationToken cancellationToken = default)
     {

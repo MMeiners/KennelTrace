@@ -1,0 +1,243 @@
+@page "/facility-map"
+@using KennelTrace.Infrastructure.Features.Facilities.FacilityMap
+@inject IFacilityMapReadService FacilityMapReadService
+
+<PageTitle>Facility Map</PageTitle>
+
+<h1>Facility Map</h1>
+
+@if (!string.IsNullOrWhiteSpace(_errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@_errorMessage</div>
+}
+
+<div class="mb-4">
+    <label class="form-label" for="facility-select">Facility</label>
+    <select id="facility-select"
+            class="form-select"
+            data-testid="facility-select"
+            value="@FormatSelectedValue(_selectedFacilityId)"
+            @onchange="OnFacilityChanged">
+        <option value="">Select a facility</option>
+        @foreach (var facility in _facilities)
+        {
+            <option value="@facility.FacilityId">@facility.Name (@facility.FacilityCode.Value)</option>
+        }
+    </select>
+</div>
+
+<div class="mb-4">
+    <label class="form-label" for="room-select">Room</label>
+    <select id="room-select"
+            class="form-select"
+            data-testid="room-select"
+            value="@FormatSelectedValue(_selectedRoomLocationId)"
+            @onchange="OnRoomChanged"
+            disabled="@(!_selectedFacilityId.HasValue || _rooms.Count == 0)">
+        <option value="">Select a room</option>
+        @foreach (var room in _rooms)
+        {
+            <option value="@room.RoomLocationId">@room.RoomName (@room.RoomCode.Value)</option>
+        }
+    </select>
+</div>
+
+@if (_selectedFacilityId.HasValue && _rooms.Count == 0)
+{
+    <p>No rooms are available for the selected facility.</p>
+}
+
+@if (_roomMap is not null)
+{
+    <section class="mb-4">
+        <h2>@_roomMap.Room.Name</h2>
+        <p>Viewing @_roomMap.Room.LocationType in @_roomMap.Facility.Name.</p>
+    </section>
+
+    @if (!HasAnyMappedLocations())
+    {
+        <div class="alert alert-info" data-testid="empty-state">
+            This room does not have any placed or unplaced locations yet.
+        </div>
+    }
+    else
+    {
+        <section class="mb-4">
+            <h2>Placed Locations</h2>
+            <div data-testid="placed-locations">
+                @if (_roomMap.PlacedLocations.Count == 0)
+                {
+                    <p>No placed locations are mapped for this room.</p>
+                }
+                else
+                {
+                    <ul class="list-group">
+                        @foreach (var location in _roomMap.PlacedLocations)
+                        {
+                            <li class="list-group-item">
+                                <button type="button"
+                                        class="btn btn-link p-0 text-start"
+                                        data-testid="@GetLocationTestId(location)"
+                                        @onclick="@(() => SelectLocation(location))">
+                                    @location.Name (@location.LocationCode.Value)
+                                </button>
+                                <div>Grid: row @location.GridRow, column @location.GridColumn, stack @location.StackLevel</div>
+                                <div>Occupancy: @location.CurrentOccupancyCount</div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </section>
+
+        @if (_roomMap.UnplacedLocations.Count > 0)
+        {
+            <section class="mb-4">
+                <h2>Unplaced Locations</h2>
+                <div data-testid="unplaced-locations">
+                    <ul class="list-group">
+                        @foreach (var location in _roomMap.UnplacedLocations)
+                        {
+                            <li class="list-group-item">
+                                <button type="button"
+                                        class="btn btn-link p-0 text-start"
+                                        data-testid="@GetLocationTestId(location)"
+                                        @onclick="@(() => SelectLocation(location))">
+                                    @location.Name (@location.LocationCode.Value)
+                                </button>
+                                <div>@location.LocationType</div>
+                                <div>Occupancy: @location.CurrentOccupancyCount</div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </section>
+        }
+    }
+
+    <section data-testid="location-detail">
+        @if (_selectedLocation is null)
+        {
+            <p>Select a location to view its details.</p>
+        }
+        else
+        {
+            <h2>Location Details</h2>
+            <dl>
+                <dt>Name</dt>
+                <dd>@_selectedLocation.Name</dd>
+                <dt>Type</dt>
+                <dd>@_selectedLocation.LocationType</dd>
+                <dt>Capacity</dt>
+                <dd>Not available in the current room map read model.</dd>
+                <dt>Current occupancy</dt>
+                <dd>@_selectedLocation.CurrentOccupancyCount</dd>
+            </dl>
+
+            @if (_selectedLocation.Links.Count == 0)
+            {
+                <p>No explicit links are stored for this location.</p>
+            }
+            else
+            {
+                <ul class="list-group">
+                    @foreach (var link in _selectedLocation.Links)
+                    {
+                        <li class="list-group-item">
+                            <strong>@link.LinkType</strong>:
+                            @GetCounterpartySummary(_selectedLocation, link)
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </section>
+}
+
+@code {
+    private IReadOnlyList<FacilityMapFacilityOption> _facilities = [];
+    private IReadOnlyList<FacilityMapRoomOption> _rooms = [];
+    private RoomMapResult? _roomMap;
+    private FacilityMapLocationDetail? _selectedLocation;
+    private int? _selectedFacilityId;
+    private int? _selectedRoomLocationId;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFacilitiesAsync();
+    }
+
+    private async Task LoadFacilitiesAsync()
+    {
+        _facilities = await FacilityMapReadService.ListFacilitiesAsync();
+    }
+
+    private async Task OnFacilityChanged(ChangeEventArgs args)
+    {
+        _selectedFacilityId = ParseNullableInt(args.Value);
+        _selectedRoomLocationId = null;
+        _roomMap = null;
+        _selectedLocation = null;
+        _errorMessage = null;
+        _rooms = [];
+
+        if (!_selectedFacilityId.HasValue)
+        {
+            return;
+        }
+
+        _rooms = await FacilityMapReadService.ListRoomsAsync(_selectedFacilityId.Value);
+    }
+
+    private async Task OnRoomChanged(ChangeEventArgs args)
+    {
+        _selectedRoomLocationId = ParseNullableInt(args.Value);
+        _roomMap = null;
+        _selectedLocation = null;
+        _errorMessage = null;
+
+        if (!_selectedFacilityId.HasValue || !_selectedRoomLocationId.HasValue)
+        {
+            return;
+        }
+
+        _roomMap = await FacilityMapReadService.GetRoomMapAsync(_selectedFacilityId.Value, _selectedRoomLocationId.Value);
+
+        if (_roomMap is null)
+        {
+            _errorMessage = "The selected room map could not be loaded.";
+            return;
+        }
+
+        _selectedLocation = _roomMap.Room;
+    }
+
+    private void SelectLocation(FacilityMapLocationDetail location)
+    {
+        _selectedLocation = location;
+    }
+
+    private bool HasAnyMappedLocations() =>
+        _roomMap is not null
+        && (_roomMap.PlacedLocations.Count > 0 || _roomMap.UnplacedLocations.Count > 0);
+
+    private static int? ParseNullableInt(object? value) =>
+        int.TryParse(value?.ToString(), out var parsedValue)
+            ? parsedValue
+            : null;
+
+    private static string FormatSelectedValue(int? value) => value?.ToString() ?? string.Empty;
+
+    private static string GetLocationTestId(FacilityMapLocationDetail location) => $"location-{location.LocationId}";
+
+    private static string GetCounterpartySummary(FacilityMapLocationDetail selectedLocation, FacilityMapLocationLink link)
+    {
+        if (link.FromLocationId == selectedLocation.LocationId)
+        {
+            return $"{link.ToLocationName} ({link.ToLocationCode.Value})";
+        }
+
+        return $"{link.FromLocationName} ({link.FromLocationCode.Value})";
+    }
+}

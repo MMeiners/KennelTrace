@@ -23,6 +23,7 @@ public sealed class NavMenuTests : BunitContext
             .ToArray();
 
         Assert.Contains(string.Empty, links);
+        Assert.Contains("facility-map", links);
         Assert.Contains("counter", links);
         Assert.Contains("weather", links);
         Assert.Contains("mudblazor-test", links);
