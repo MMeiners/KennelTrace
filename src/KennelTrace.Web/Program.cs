@@ -1,5 +1,6 @@
 using KennelTrace.Infrastructure.Persistence;
 using KennelTrace.Web.Components;
+using KennelTrace.Web.Development;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +12,11 @@ builder.Services.AddMudServices();
 builder.Services.AddKennelTraceSqlServer(builder.Configuration);
 
 var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    await app.Services.ApplyDevelopmentDatabaseSetupAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

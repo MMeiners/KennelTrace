@@ -80,6 +80,15 @@ Playwright browser setup for the browser test project:
 
 If `dotnet` is not on `PATH` in the current shell on this machine, the validated SDK path is `C:\Users\Mark\.dotnet\dotnet.exe`.
 
+## Local development database behavior
+
+When `ASPNETCORE_ENVIRONMENT=Development`, the web app now:
+
+- applies pending EF Core migrations automatically at startup
+- seeds one small development-only facility map dataset if facility `DEV-PHX` is not already present
+
+This is only for local development convenience. Production/non-development startup does not auto-migrate or auto-seed.
+
 ## Core modeling rules
 
 These rules should stay consistent across code, schema, imports, and UI:
