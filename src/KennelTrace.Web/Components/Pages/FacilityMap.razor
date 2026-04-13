@@ -1,4 +1,5 @@
 @page "/facility-map"
+@rendermode InteractiveServer
 @using KennelTrace.Infrastructure.Features.Facilities.FacilityMap
 @inject IFacilityMapReadService FacilityMapReadService
 
@@ -11,35 +12,37 @@
     <div class="alert alert-danger" role="alert">@_errorMessage</div>
 }
 
-<div class="mb-4">
-    <label class="form-label" for="facility-select">Facility</label>
-    <select id="facility-select"
-            class="form-select"
-            data-testid="facility-select"
-            value="@FormatSelectedValue(_selectedFacilityId)"
-            @onchange="OnFacilityChanged">
-        <option value="">Select a facility</option>
-        @foreach (var facility in _facilities)
-        {
-            <option value="@facility.FacilityId">@facility.Name (@facility.FacilityCode.Value)</option>
-        }
-    </select>
-</div>
+<div class="facility-map-toolbar">
+    <div>
+        <label class="form-label" for="facility-select">Facility</label>
+        <select id="facility-select"
+                class="form-select"
+                data-testid="facility-select"
+                value="@FormatSelectedValue(_selectedFacilityId)"
+                @onchange="OnFacilityChanged">
+            <option value="">Select a facility</option>
+            @foreach (var facility in _facilities)
+            {
+                <option value="@facility.FacilityId">@facility.Name (@facility.FacilityCode.Value)</option>
+            }
+        </select>
+    </div>
 
-<div class="mb-4">
-    <label class="form-label" for="room-select">Room</label>
-    <select id="room-select"
-            class="form-select"
-            data-testid="room-select"
-            value="@FormatSelectedValue(_selectedRoomLocationId)"
-            @onchange="OnRoomChanged"
-            disabled="@(!_selectedFacilityId.HasValue || _rooms.Count == 0)">
-        <option value="">Select a room</option>
-        @foreach (var room in _rooms)
-        {
-            <option value="@room.RoomLocationId">@room.RoomName (@room.RoomCode.Value)</option>
-        }
-    </select>
+    <div>
+        <label class="form-label" for="room-select">Room</label>
+        <select id="room-select"
+                class="form-select"
+                data-testid="room-select"
+                value="@FormatSelectedValue(_selectedRoomLocationId)"
+                @onchange="OnRoomChanged"
+                disabled="@(!_selectedFacilityId.HasValue || _rooms.Count == 0)">
+            <option value="">Select a room</option>
+            @foreach (var room in _rooms)
+            {
+                <option value="@room.RoomLocationId">@room.RoomName (@room.RoomCode.Value)</option>
+            }
+        </select>
+    </div>
 </div>
 
 @if (_selectedFacilityId.HasValue && _rooms.Count == 0)
@@ -49,109 +52,158 @@
 
 @if (_roomMap is not null)
 {
-    <section class="mb-4">
-        <h2>@_roomMap.Room.Name</h2>
-        <p>Viewing @_roomMap.Room.LocationType in @_roomMap.Facility.Name.</p>
+    <section class="facility-map-summary">
+        <div>
+            <p class="facility-map-eyebrow">Read-only room layout</p>
+            <h2>@_roomMap.Room.Name</h2>
+        </div>
+        <div class="facility-map-summary-meta">
+            <span>@_roomMap.Room.LocationType in @_roomMap.Facility.Name</span>
+            <span>@_roomMap.PlacedLocations.Count placed</span>
+            <span>@_roomMap.UnplacedLocations.Count unplaced</span>
+        </div>
     </section>
 
-    @if (!HasAnyMappedLocations())
-    {
-        <div class="alert alert-info" data-testid="empty-state">
-            This room does not have any placed or unplaced locations yet.
-        </div>
-    }
-    else
-    {
-        <section class="mb-4">
-            <h2>Placed Locations</h2>
-            <div data-testid="placed-locations">
-                @if (_roomMap.PlacedLocations.Count == 0)
-                {
-                    <p>No placed locations are mapped for this room.</p>
-                }
-                else
-                {
-                    <ul class="list-group">
-                        @foreach (var location in _roomMap.PlacedLocations)
-                        {
-                            <li class="list-group-item">
-                                <button type="button"
-                                        class="btn btn-link p-0 text-start"
-                                        data-testid="@GetLocationTestId(location)"
-                                        @onclick="@(() => SelectLocation(location))">
-                                    @location.Name (@location.LocationCode.Value)
-                                </button>
-                                <div>Grid: row @location.GridRow, column @location.GridColumn, stack @location.StackLevel</div>
-                                <div>Occupancy: @location.CurrentOccupancyCount</div>
-                            </li>
-                        }
-                    </ul>
-                }
-            </div>
-        </section>
-
-        @if (_roomMap.UnplacedLocations.Count > 0)
-        {
-            <section class="mb-4">
-                <h2>Unplaced Locations</h2>
-                <div data-testid="unplaced-locations">
-                    <ul class="list-group">
-                        @foreach (var location in _roomMap.UnplacedLocations)
-                        {
-                            <li class="list-group-item">
-                                <button type="button"
-                                        class="btn btn-link p-0 text-start"
-                                        data-testid="@GetLocationTestId(location)"
-                                        @onclick="@(() => SelectLocation(location))">
-                                    @location.Name (@location.LocationCode.Value)
-                                </button>
-                                <div>@location.LocationType</div>
-                                <div>Occupancy: @location.CurrentOccupancyCount</div>
-                            </li>
-                        }
-                    </ul>
-                </div>
-            </section>
-        }
-    }
-
-    <section data-testid="location-detail">
-        @if (_selectedLocation is null)
-        {
-            <p>Select a location to view its details.</p>
-        }
-        else
-        {
-            <h2>Location Details</h2>
-            <dl>
-                <dt>Name</dt>
-                <dd>@_selectedLocation.Name</dd>
-                <dt>Type</dt>
-                <dd>@_selectedLocation.LocationType</dd>
-                <dt>Capacity</dt>
-                <dd>Not available in the current room map read model.</dd>
-                <dt>Current occupancy</dt>
-                <dd>@_selectedLocation.CurrentOccupancyCount</dd>
-            </dl>
-
-            @if (_selectedLocation.Links.Count == 0)
+    <div class="facility-map-layout">
+        <section class="facility-map-board">
+            @if (!HasAnyMappedLocations())
             {
-                <p>No explicit links are stored for this location.</p>
+                <div class="alert alert-info mb-0" data-testid="empty-state">
+                    This room does not have any placed or unplaced locations yet.
+                </div>
             }
             else
             {
-                <ul class="list-group">
-                    @foreach (var link in _selectedLocation.Links)
-                    {
-                        <li class="list-group-item">
-                            <strong>@link.LinkType</strong>:
-                            @GetCounterpartySummary(_selectedLocation, link)
-                        </li>
-                    }
-                </ul>
+                <section class="facility-map-section">
+                    <div class="facility-map-section-header">
+                        <div>
+                            <h3>Placed Locations</h3>
+                            <p>Visual placement comes from stored grid coordinates only.</p>
+                        </div>
+                    </div>
+
+                    <div class="facility-map-grid-shell" data-testid="placed-locations">
+                        @if (_roomMap.PlacedLocations.Count == 0)
+                        {
+                            <p class="facility-map-empty-copy">No placed locations are mapped for this room.</p>
+                        }
+                        else
+                        {
+                            <div class="facility-map-grid" style="@GetGridStyle()">
+                                @foreach (var cell in GetPlacedCells())
+                                {
+                                    <div class="facility-map-cell" style="@GetCellStyle(cell)">
+                                        <div class="facility-map-cell-label">Row @cell.Row, Column @cell.Column</div>
+
+                                        @foreach (var location in cell.Locations)
+                                        {
+                                            <button type="button"
+                                                    class="@GetLocationButtonCssClass(location)"
+                                                    aria-pressed="@IsSelectedLocation(location)"
+                                                    data-testid="@GetLocationTestId(location)"
+                                                    @onclick="@(() => SelectLocation(location))">
+                                                <span class="facility-map-location-name">@location.Name</span>
+                                                <span class="facility-map-location-meta">@location.LocationCode.Value</span>
+                                                <span class="facility-map-location-meta">Stack @location.StackLevel</span>
+                                                <span class="facility-map-location-meta">@GetOccupancySummary(location)</span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                <section class="facility-map-section">
+                    <div class="facility-map-section-header">
+                        <div>
+                            <h3>Unplaced Locations</h3>
+                            <p>Locations without grid placement stay visible here.</p>
+                        </div>
+                    </div>
+
+                    <div class="facility-map-unplaced-list" data-testid="unplaced-locations">
+                        @if (_roomMap.UnplacedLocations.Count == 0)
+                        {
+                            <p class="facility-map-empty-copy">No unplaced locations are mapped for this room.</p>
+                        }
+                        else
+                        {
+                            @foreach (var location in _roomMap.UnplacedLocations)
+                            {
+                                <button type="button"
+                                        class="@GetLocationButtonCssClass(location)"
+                                        aria-pressed="@IsSelectedLocation(location)"
+                                        data-testid="@GetLocationTestId(location)"
+                                        @onclick="@(() => SelectLocation(location))">
+                                    <span class="facility-map-location-name">@location.Name</span>
+                                    <span class="facility-map-location-meta">@location.LocationType</span>
+                                    <span class="facility-map-location-meta">@location.LocationCode.Value</span>
+                                    <span class="facility-map-location-meta">@GetOccupancySummary(location)</span>
+                                </button>
+                            }
+                        }
+                    </div>
+                </section>
             }
-        }
-    </section>
+        </section>
+
+        <aside class="facility-map-detail-panel" data-testid="location-detail">
+            @if (_selectedLocation is null)
+            {
+                <p>Select a location to view its details.</p>
+            }
+            else
+            {
+                <div class="facility-map-detail-header">
+                    <p class="facility-map-eyebrow">Selected location</p>
+                    <h2 data-testid="location-detail-name">@_selectedLocation.Name</h2>
+                    <p>@_selectedLocation.LocationType · @_selectedLocation.LocationCode.Value</p>
+                </div>
+
+                <dl class="facility-map-detail-list">
+                    <dt>Facility</dt>
+                    <dd>@_roomMap.Facility.Name</dd>
+                    <dt>Room context</dt>
+                    <dd>@_roomMap.Room.Name</dd>
+                    <dt>Status</dt>
+                    <dd>@GetActiveStatus(_selectedLocation)</dd>
+                    <dt>Placement</dt>
+                    <dd>@GetPlacementSummary(_selectedLocation)</dd>
+                    <dt>Current occupancy</dt>
+                    <dd>@_selectedLocation.CurrentOccupancyCount</dd>
+                </dl>
+
+                @if (!string.IsNullOrWhiteSpace(_selectedLocation.Notes))
+                {
+                    <div class="facility-map-notes">
+                        @_selectedLocation.Notes
+                    </div>
+                }
+
+                <div class="facility-map-links">
+                    <h3>Explicit links</h3>
+                    @if (_selectedLocation.Links.Count == 0)
+                    {
+                        <p>No explicit links are stored for this location.</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group">
+                            @foreach (var link in _selectedLocation.Links)
+                            {
+                                <li class="list-group-item">
+                                    <strong>@link.LinkType</strong>:
+                                    @GetCounterpartySummary(_selectedLocation, link)
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
+        </aside>
+    </div>
 }
 
 @code {
@@ -222,6 +274,65 @@
         _roomMap is not null
         && (_roomMap.PlacedLocations.Count > 0 || _roomMap.UnplacedLocations.Count > 0);
 
+    private IReadOnlyList<FacilityMapCell> GetPlacedCells()
+    {
+        if (_roomMap is null)
+        {
+            return [];
+        }
+
+        return _roomMap.PlacedLocations
+            .Where(location => location.GridRow.HasValue && location.GridColumn.HasValue)
+            .GroupBy(location => new { Row = location.GridRow!.Value, Column = location.GridColumn!.Value })
+            .OrderBy(group => group.Key.Row)
+            .ThenBy(group => group.Key.Column)
+            .Select(group => new FacilityMapCell(
+                group.Key.Row,
+                group.Key.Column,
+                group.OrderBy(location => location.StackLevel)
+                    .ThenBy(location => location.DisplayOrder ?? int.MaxValue)
+                    .ThenBy(location => location.Name)
+                    .ThenBy(location => location.LocationCode)
+                    .ThenBy(location => location.LocationId)
+                    .ToList()))
+            .ToList();
+    }
+
+    private string GetGridStyle()
+    {
+        if (_roomMap is null || _roomMap.PlacedLocations.Count == 0)
+        {
+            return "grid-template-columns: repeat(1, minmax(10rem, 1fr));";
+        }
+
+        var rowCount = _roomMap.PlacedLocations.Max(location => location.GridRow ?? 0) + 1;
+        var columnCount = _roomMap.PlacedLocations.Max(location => location.GridColumn ?? 0) + 1;
+
+        return $"grid-template-columns: repeat({Math.Max(columnCount, 1)}, minmax(10rem, 1fr)); grid-template-rows: repeat({Math.Max(rowCount, 1)}, minmax(8rem, auto));";
+    }
+
+    private static string GetCellStyle(FacilityMapCell cell) => $"grid-row: {cell.Row + 1}; grid-column: {cell.Column + 1};";
+
+    private string GetLocationButtonCssClass(FacilityMapLocationDetail location) =>
+        IsSelectedLocation(location)
+            ? "facility-map-location-button selected"
+            : "facility-map-location-button";
+
+    private bool IsSelectedLocation(FacilityMapLocationDetail location) =>
+        _selectedLocation?.LocationId == location.LocationId;
+
+    private static string GetOccupancySummary(FacilityMapLocationDetail location) =>
+        location.CurrentOccupancyCount == 1
+            ? "1 current occupant"
+            : $"{location.CurrentOccupancyCount} current occupants";
+
+    private static string GetActiveStatus(FacilityMapLocationDetail location) => location.IsActive ? "Active" : "Inactive";
+
+    private static string GetPlacementSummary(FacilityMapLocationDetail location) =>
+        location.GridRow.HasValue && location.GridColumn.HasValue
+            ? $"Row {location.GridRow}, column {location.GridColumn}, stack {location.StackLevel}"
+            : "Unplaced";
+
     private static int? ParseNullableInt(object? value) =>
         int.TryParse(value?.ToString(), out var parsedValue)
             ? parsedValue
@@ -240,4 +351,9 @@
 
         return $"{link.FromLocationName} ({link.FromLocationCode.Value})";
     }
+
+    private sealed record FacilityMapCell(
+        int Row,
+        int Column,
+        IReadOnlyList<FacilityMapLocationDetail> Locations);
 }

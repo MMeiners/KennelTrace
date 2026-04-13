@@ -81,8 +81,10 @@ public sealed class FacilityMapPageTests : BunitContext
         cut.Find("[data-testid='room-select']").Change("101");
 
         Assert.Equal([(12, 101)], _service.GetRoomMapCalls);
-        Assert.Contains("Viewing Room in Phoenix Shelter.", cut.Markup);
-        Assert.Contains("Kennel 1 (KEN-1)", cut.Find("[data-testid='placed-locations']").InnerHtml);
+        Assert.Contains("Read-only room layout", cut.Markup);
+        var placedLocations = cut.Find("[data-testid='placed-locations']").TextContent;
+        Assert.Contains("Kennel 1", placedLocations);
+        Assert.Contains("KEN-1", placedLocations);
     }
 
     [Fact]
@@ -128,11 +130,34 @@ public sealed class FacilityMapPageTests : BunitContext
         cut.Find("[data-testid='location-201']").Click();
 
         var detail = cut.Find("[data-testid='location-detail']");
+        Assert.Equal("Kennel 1", cut.Find("[data-testid='location-detail-name']").TextContent);
         Assert.Contains("Kennel 1", detail.TextContent);
         Assert.Contains("Kennel", detail.TextContent);
         Assert.Contains("2", detail.TextContent);
         Assert.Contains("AdjacentRight", detail.TextContent);
         Assert.Contains("Kennel 2 (KEN-2)", detail.TextContent);
+    }
+
+    [Fact]
+    public void Selecting_A_Location_Marks_It_As_Selected()
+    {
+        _service.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _service.RoomsByFacilityId[12] = [Room(12, 101, "ROOM-A", "Room A", LocationType.Room)];
+        _service.RoomMaps[(12, 101)] = RoomMap(
+            Facility(12, "PHX", "Phoenix Shelter"),
+            Location(101, 12, "ROOM-A", "Room A", LocationType.Room),
+            [Location(201, 12, "KEN-1", "Kennel 1", LocationType.Kennel, gridRow: 0, gridColumn: 0)],
+            []);
+
+        var cut = Render<FacilityMap>();
+        cut.Find("[data-testid='facility-select']").Change("12");
+        cut.Find("[data-testid='room-select']").Change("101");
+
+        var locationButton = cut.Find("[data-testid='location-201']");
+        locationButton.Click();
+
+        locationButton = cut.Find("[data-testid='location-201']");
+        Assert.Contains("selected", locationButton.ClassList);
     }
 
     [Fact]
@@ -168,8 +193,13 @@ public sealed class FacilityMapPageTests : BunitContext
         cut.Find("[data-testid='facility-select']").Change("12");
         cut.Find("[data-testid='room-select']").Change("101");
 
-        Assert.Contains("Kennel 1 (KEN-1)", cut.Find("[data-testid='placed-locations']").InnerHtml);
-        Assert.Contains("Overflow Kennel (KEN-UNPLACED)", cut.Find("[data-testid='unplaced-locations']").InnerHtml);
+        var placedLocations = cut.Find("[data-testid='placed-locations']").TextContent;
+        Assert.Contains("Kennel 1", placedLocations);
+        Assert.Contains("KEN-1", placedLocations);
+
+        var unplacedLocations = cut.Find("[data-testid='unplaced-locations']").TextContent;
+        Assert.Contains("Overflow Kennel", unplacedLocations);
+        Assert.Contains("KEN-UNPLACED", unplacedLocations);
     }
 
     private static FacilityMapFacilityOption Facility(int facilityId, string facilityCode, string name) =>
