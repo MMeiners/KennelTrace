@@ -68,6 +68,15 @@ Validated in this repository:
 - `dotnet restore KennelTrace.sln`
 - `dotnet build KennelTrace.sln`
 - `dotnet test KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj`
+
+Playwright browser setup for the browser test project:
+
+- `dotnet build tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj`
+- `pwsh .\bin\Debug\net10.0\playwright.ps1 install` from `tests/KennelTrace.PlaywrightTests`
+- set `KENNELTRACE_BASE_URL` to a running `KennelTrace.Web` base URL before enabling non-skipped browser tests
 
 If `dotnet` is not on `PATH` in the current shell on this machine, the validated SDK path is `C:\Users\Mark\.dotnet\dotnet.exe`.
 
@@ -95,6 +104,8 @@ src/
   KennelTrace.Infrastructure
 tests/
   KennelTrace.Tests
+  KennelTrace.Web.Tests
+  KennelTrace.PlaywrightTests
 ```
 
 Feature-oriented folders are preferred inside projects, for example:

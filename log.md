@@ -29,3 +29,9 @@ Added SQL Server integration coverage for validate-only issue persistence, succe
 Added MudBlazor to `KennelTrace.Web` using the manual installation path. This registered `AddMudServices()`, added the MudBlazor CSS and JS assets in the app root, placed the required theme/popover/dialog/snackbar providers in the main layout, and introduced a single interactive `/mudblazor-test` page with a `MudButton` and `MudTable` plus a nav link to reach it.
 
 Verified the integration with `dotnet build KennelTrace.sln` and a local `dotnet run --project src\KennelTrace.Web\KennelTrace.Web.csproj --launch-profile https --no-build` smoke test. The app started successfully, `/_content/MudBlazor/MudBlazor.min.css` returned `200`, and the test page rendered the expected MudBlazor markup.
+
+## 2026-04-12 19:38:00 -07:00
+
+Split UI testing into dedicated projects by adding `tests/KennelTrace.Web.Tests` for `bUnit` component coverage and `tests/KennelTrace.PlaywrightTests` for Playwright browser automation, while leaving `tests/KennelTrace.Tests` focused on domain, import, and persistence tests. Added starter smoke tests for the Blazor nav menu and the home page, updated `README.md` and `AGENTS.md` with the new test and Playwright install commands, and installed the Playwright browser bundle with Windows PowerShell.
+
+Verified the change with `dotnet restore KennelTrace.sln`, `dotnet build KennelTrace.sln`, and `dotnet test KennelTrace.sln`, all of which passed. The Playwright smoke test remains intentionally skipped until `KENNELTRACE_BASE_URL` is pointed at a running `KennelTrace.Web` instance.
