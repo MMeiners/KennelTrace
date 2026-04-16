@@ -1,4 +1,5 @@
 using Bunit;
+using KennelTrace.Infrastructure.Features.Facilities.FacilityMap;
 using KennelTrace.Web.Components.Pages;
 using KennelTrace.Web.Features.Facilities.Admin;
 using KennelTrace.Web.Features.Locations.Admin;
@@ -16,6 +17,7 @@ namespace KennelTrace.Web.Tests;
 public sealed class AdminLayoutRouteTests : BunitContext
 {
     private readonly FakeFacilityAdminService _service = new();
+    private readonly FakeFacilityMapReadService _facilityMapReadService = new();
     private readonly FakeLocationAdminService _locationService = new();
     private readonly TestAuthenticationStateProvider _authenticationStateProvider = new();
 
@@ -30,6 +32,7 @@ public sealed class AdminLayoutRouteTests : BunitContext
         Services.AddAuthorizationCore();
         Services.AddSingleton<AuthenticationStateProvider>(_authenticationStateProvider);
         Services.AddSingleton<IFacilityAdminService>(_service);
+        Services.AddSingleton<IFacilityMapReadService>(_facilityMapReadService);
         Services.AddSingleton<ILocationAdminService>(_locationService);
     }
 
@@ -113,5 +116,17 @@ public sealed class AdminLayoutRouteTests : BunitContext
 
         public Task<LocationSaveResult> SaveAsync(LocationSaveRequest request, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
             Task.FromResult(LocationSaveResult.Forbidden());
+    }
+
+    private sealed class FakeFacilityMapReadService : IFacilityMapReadService
+    {
+        public Task<IReadOnlyList<FacilityMapFacilityOption>> ListFacilitiesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<FacilityMapFacilityOption>>([]);
+
+        public Task<IReadOnlyList<FacilityMapRoomOption>> ListRoomsAsync(int facilityId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<FacilityMapRoomOption>>([]);
+
+        public Task<RoomMapResult?> GetRoomMapAsync(int facilityId, int roomLocationId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<RoomMapResult?>(null);
     }
 }

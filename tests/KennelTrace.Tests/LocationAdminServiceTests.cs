@@ -56,6 +56,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
                 LocationCode: "KEN-1",
                 Name: "Kennel 1",
                 ParentLocationId: room.LocationId,
+                GridRow: 0,
+                GridColumn: 1,
+                StackLevel: 0,
                 DisplayOrder: 2,
                 IsActive: true,
                 Notes: "New kennel"),
@@ -72,6 +75,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
                 LocationCode: "KEN-1A",
                 Name: "Kennel 1A",
                 ParentLocationId: room.LocationId,
+                GridRow: null,
+                GridColumn: null,
+                StackLevel: 2,
                 DisplayOrder: 3,
                 IsActive: false,
                 Notes: "Deactivated kennel"),
@@ -83,6 +89,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
         var location = await verificationContext.Locations.SingleAsync(x => x.LocationCode == new LocationCode("KEN-1A"));
 
         Assert.Equal("Kennel 1A", location.Name);
+        Assert.Null(location.GridRow);
+        Assert.Null(location.GridColumn);
+        Assert.Equal(2, location.StackLevel);
         Assert.Equal(3, location.DisplayOrder);
         Assert.False(location.IsActive);
         Assert.Equal("Deactivated kennel", location.Notes);
@@ -106,6 +115,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
                 LocationCode: "KEN-1",
                 Name: "Kennel 1",
                 ParentLocationId: secondFacilityRoom.LocationId,
+                GridRow: 0,
+                GridColumn: 0,
+                StackLevel: 0,
                 DisplayOrder: null,
                 IsActive: true,
                 Notes: null),
@@ -132,6 +144,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
                 "ROOM-A",
                 "Room A",
                 room.LocationId,
+                null,
+                null,
+                0,
                 null,
                 true,
                 null),
@@ -160,6 +175,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
                 "Room A",
                 childRoom.LocationId,
                 null,
+                null,
+                0,
+                null,
                 true,
                 null),
             CreateUser(KennelTraceRoles.Admin));
@@ -187,6 +205,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
                 LocationCode: "KEN-2",
                 Name: "Kennel 2",
                 ParentLocationId: hallway.LocationId,
+                GridRow: 0,
+                GridColumn: 0,
+                StackLevel: 0,
                 DisplayOrder: null,
                 IsActive: true,
                 Notes: null),
@@ -203,6 +224,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
                 LocationCode: "ROOM-A",
                 Name: "Room A",
                 ParentLocationId: null,
+                GridRow: null,
+                GridColumn: null,
+                StackLevel: 0,
                 DisplayOrder: null,
                 IsActive: true,
                 Notes: null),
@@ -231,6 +255,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
                 LocationCode: "ROOM-A",
                 Name: "Duplicate Room",
                 ParentLocationId: null,
+                GridRow: null,
+                GridColumn: null,
+                StackLevel: 0,
                 DisplayOrder: null,
                 IsActive: true,
                 Notes: null),
@@ -240,6 +267,97 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
         Assert.Contains(
             "Location code must be unique within the facility.",
             result.ValidationErrors[nameof(LocationSaveRequest.LocationCode)]);
+    }
+
+    [Fact]
+    public async Task Kennel_Placement_Requires_Paired_Row_And_Column()
+    {
+        await using var context = CreateContext();
+        var now = Utc(2026, 4, 15, 18);
+        var facility = await AddFacilityAsync(context, "PHX", "Phoenix", now);
+        var room = await AddLocationAsync(context, facility.FacilityId, "ROOM-A", "Room A", LocationType.Room, now);
+        var service = CreateService(context);
+
+        var result = await service.SaveAsync(
+            new LocationSaveRequest(
+                LocationId: null,
+                FacilityId: facility.FacilityId,
+                LocationType: LocationType.Kennel,
+                LocationCode: "KEN-PAIR",
+                Name: "Kennel Pair",
+                ParentLocationId: room.LocationId,
+                GridRow: 1,
+                GridColumn: null,
+                StackLevel: 0,
+                DisplayOrder: null,
+                IsActive: true,
+                Notes: null),
+            CreateUser(KennelTraceRoles.Admin));
+
+        Assert.Equal(LocationSaveStatus.ValidationFailed, result.Status);
+        Assert.Contains("GridRow and GridColumn must both be populated or both be null.", result.ValidationErrors[nameof(LocationSaveRequest.GridRow)]);
+    }
+
+    [Fact]
+    public async Task Kennel_Placement_Rejects_Negative_Grid_Values()
+    {
+        await using var context = CreateContext();
+        var now = Utc(2026, 4, 15, 18);
+        var facility = await AddFacilityAsync(context, "PHX", "Phoenix", now);
+        var room = await AddLocationAsync(context, facility.FacilityId, "ROOM-A", "Room A", LocationType.Room, now);
+        var service = CreateService(context);
+
+        var result = await service.SaveAsync(
+            new LocationSaveRequest(
+                LocationId: null,
+                FacilityId: facility.FacilityId,
+                LocationType: LocationType.Kennel,
+                LocationCode: "KEN-NEG",
+                Name: "Negative Kennel",
+                ParentLocationId: room.LocationId,
+                GridRow: -1,
+                GridColumn: 0,
+                StackLevel: -1,
+                DisplayOrder: null,
+                IsActive: true,
+                Notes: null),
+            CreateUser(KennelTraceRoles.Admin));
+
+        Assert.Equal(LocationSaveStatus.ValidationFailed, result.Status);
+        Assert.Contains("Grid row cannot be negative.", result.ValidationErrors[nameof(LocationSaveRequest.GridRow)]);
+        Assert.Contains("Stack level cannot be negative.", result.ValidationErrors[nameof(LocationSaveRequest.StackLevel)]);
+    }
+
+    [Fact]
+    public async Task Active_Kennels_Cannot_Collide_In_The_Same_Room_Position()
+    {
+        await using var context = CreateContext();
+        var now = Utc(2026, 4, 15, 18);
+        var facility = await AddFacilityAsync(context, "PHX", "Phoenix", now);
+        var room = await AddLocationAsync(context, facility.FacilityId, "ROOM-A", "Room A", LocationType.Room, now);
+        await AddLocationAsync(context, facility.FacilityId, "KEN-1", "Kennel 1", LocationType.Kennel, now, room.LocationId, null, 0, 0, 1);
+        var service = CreateService(context);
+
+        var result = await service.SaveAsync(
+            new LocationSaveRequest(
+                LocationId: null,
+                FacilityId: facility.FacilityId,
+                LocationType: LocationType.Kennel,
+                LocationCode: "KEN-2",
+                Name: "Kennel 2",
+                ParentLocationId: room.LocationId,
+                GridRow: 0,
+                GridColumn: 0,
+                StackLevel: 1,
+                DisplayOrder: null,
+                IsActive: true,
+                Notes: null),
+            CreateUser(KennelTraceRoles.Admin));
+
+        Assert.Equal(LocationSaveStatus.ValidationFailed, result.Status);
+        Assert.Contains(
+            "Another active kennel already uses that room, row, column, and stack position.",
+            result.ValidationErrors[nameof(LocationSaveRequest.GridRow)]);
     }
 
     private KennelTraceDbContext CreateContext()
@@ -298,7 +416,10 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
         LocationType locationType,
         DateTime now,
         int? parentLocationId = null,
-        int? displayOrder = null)
+        int? displayOrder = null,
+        int? gridRow = null,
+        int? gridColumn = null,
+        int stackLevel = 0)
     {
         var location = new Location(
             facilityId,
@@ -308,6 +429,9 @@ public sealed class LocationAdminServiceTests : IAsyncLifetime
             now,
             now,
             parentLocationId,
+            gridRow: gridRow,
+            gridColumn: gridColumn,
+            stackLevel: stackLevel,
             displayOrder: displayOrder);
 
         context.Locations.Add(location);

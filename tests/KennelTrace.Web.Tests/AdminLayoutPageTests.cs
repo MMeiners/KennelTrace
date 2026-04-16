@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Bunit;
 using KennelTrace.Domain.Features.Locations;
+using KennelTrace.Infrastructure.Features.Facilities.FacilityMap;
 using KennelTrace.Web.Components.Pages;
 using KennelTrace.Web.Features.Facilities.Admin;
 using KennelTrace.Web.Features.Locations.Admin;
@@ -14,6 +15,7 @@ namespace KennelTrace.Web.Tests;
 public sealed class AdminLayoutPageTests : BunitContext
 {
     private readonly FakeFacilityAdminService _facilityService = new();
+    private readonly FakeFacilityMapReadService _facilityMapReadService = new();
     private readonly FakeLocationAdminService _locationService = new();
     private readonly TestAuthenticationStateProvider _authenticationStateProvider = new();
 
@@ -23,6 +25,7 @@ public sealed class AdminLayoutPageTests : BunitContext
         Services.AddAuthorizationCore();
         Services.AddSingleton<AuthenticationStateProvider>(_authenticationStateProvider);
         Services.AddSingleton<IFacilityAdminService>(_facilityService);
+        Services.AddSingleton<IFacilityMapReadService>(_facilityMapReadService);
         Services.AddSingleton<ILocationAdminService>(_locationService);
 
         _authenticationStateProvider.SetUser("admin-user", KennelTraceRoles.Admin, KennelTraceRoles.ReadOnly);
@@ -60,7 +63,7 @@ public sealed class AdminLayoutPageTests : BunitContext
             "Phoenix Shelter",
             [
                 Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A", displayOrder: 1),
-                Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1", notes: "Window side")
+                Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1", gridRow: 0, gridColumn: 1, stackLevel: 2, notes: "Window side")
             ]);
 
         var cut = Render<AdminLayout>();
@@ -69,6 +72,9 @@ public sealed class AdminLayoutPageTests : BunitContext
 
         Assert.Equal("KEN-1", cut.Find("[data-testid='location-code-input']").GetAttribute("value"));
         Assert.Equal("Kennel 1", cut.Find("[data-testid='location-name-input']").GetAttribute("value"));
+        Assert.Equal("0", cut.Find("[data-testid='grid-row-input']").GetAttribute("value"));
+        Assert.Equal("1", cut.Find("[data-testid='grid-column-input']").GetAttribute("value"));
+        Assert.Equal("2", cut.Find("[data-testid='stack-level-input']").GetAttribute("value"));
         Assert.Contains("Edit Location", cut.Find("[data-testid='location-form']").TextContent);
     }
 
@@ -79,7 +85,7 @@ public sealed class AdminLayoutPageTests : BunitContext
         _locationService.FacilityViews[12] = View(12, "PHX", "Phoenix Shelter", []);
         _locationService.OnSave = request =>
         {
-            var createdLocation = Location(301, 12, null, request.LocationType, request.LocationCode, request.Name, request.DisplayOrder, request.IsActive, request.Notes);
+            var createdLocation = Location(301, 12, null, request.LocationType, request.LocationCode, request.Name, request.GridRow, request.GridColumn, request.StackLevel, request.DisplayOrder, request.IsActive, request.Notes);
             _locationService.FacilityViews[12] = View(12, "PHX", "Phoenix Shelter", [createdLocation]);
             return LocationSaveResult.Success(createdLocation);
         };
@@ -108,7 +114,7 @@ public sealed class AdminLayoutPageTests : BunitContext
             [Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A", displayOrder: 1)]);
         _locationService.OnSave = request =>
         {
-            var updatedLocation = Location(101, 12, null, request.LocationType, request.LocationCode, request.Name, request.DisplayOrder, request.IsActive, request.Notes);
+            var updatedLocation = Location(101, 12, null, request.LocationType, request.LocationCode, request.Name, request.GridRow, request.GridColumn, request.StackLevel, request.DisplayOrder, request.IsActive, request.Notes);
             _locationService.FacilityViews[12] = View(12, "PHX", "Phoenix Shelter", [updatedLocation]);
             return LocationSaveResult.Success(updatedLocation);
         };
@@ -144,6 +150,80 @@ public sealed class AdminLayoutPageTests : BunitContext
         Assert.Contains("Location code must be unique within the facility.", cut.Markup);
     }
 
+    [Fact]
+    public void Selected_Room_Shows_Kennel_Placement_Table_And_Stored_Preview()
+    {
+        _facilityService.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _locationService.FacilityViews[12] = View(
+            12,
+            "PHX",
+            "Phoenix Shelter",
+            [
+                Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A"),
+                Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1", gridRow: 0, gridColumn: 0),
+                Location(202, 12, 101, LocationType.Kennel, "KEN-2", "Kennel 2")
+            ]);
+        _facilityMapReadService.RoomMaps[(12, 101)] = RoomMap(
+            FacilityMapFacility(12, "PHX", "Phoenix Shelter"),
+            FacilityMapLocation(101, 12, "ROOM-A", "Room A", LocationType.Room),
+            [FacilityMapLocation(201, 12, "KEN-1", "Kennel 1", LocationType.Kennel, gridRow: 0, gridColumn: 0)],
+            [FacilityMapLocation(202, 12, "KEN-2", "Kennel 2", LocationType.Kennel)]);
+
+        var cut = Render<AdminLayout>();
+
+        cut.Find("[data-testid='location-item-101']").Click();
+
+        Assert.Contains("Kennel Placement", cut.Find("[data-testid='room-placement-editor']").TextContent);
+        Assert.Contains("Kennel 1", cut.Find("[data-testid='room-placement-table']").TextContent);
+        Assert.Contains("Kennel 1", cut.Find("[data-testid='admin-placed-preview']").TextContent);
+        Assert.Contains("Kennel 2", cut.Find("[data-testid='admin-unplaced-preview']").TextContent);
+    }
+
+    [Fact]
+    public void Room_Placement_Row_Saves_Kennel_Grid_Fields()
+    {
+        _facilityService.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _locationService.FacilityViews[12] = View(
+            12,
+            "PHX",
+            "Phoenix Shelter",
+            [
+                Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A"),
+                Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1")
+            ]);
+        _facilityMapReadService.RoomMaps[(12, 101)] = RoomMap(
+            FacilityMapFacility(12, "PHX", "Phoenix Shelter"),
+            FacilityMapLocation(101, 12, "ROOM-A", "Room A", LocationType.Room),
+            [],
+            [FacilityMapLocation(201, 12, "KEN-1", "Kennel 1", LocationType.Kennel)]);
+        _locationService.OnSave = request =>
+        {
+            var updatedLocation = Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1", request.GridRow, request.GridColumn, request.StackLevel, request.DisplayOrder, request.IsActive, request.Notes);
+            _locationService.FacilityViews[12] = View(12, "PHX", "Phoenix Shelter", [Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A"), updatedLocation]);
+            _facilityMapReadService.RoomMaps[(12, 101)] = RoomMap(
+                FacilityMapFacility(12, "PHX", "Phoenix Shelter"),
+                FacilityMapLocation(101, 12, "ROOM-A", "Room A", LocationType.Room),
+                [FacilityMapLocation(201, 12, "KEN-1", "Kennel 1", LocationType.Kennel, request.GridRow, request.GridColumn, request.StackLevel, request.DisplayOrder)],
+                []);
+            return LocationSaveResult.Success(updatedLocation);
+        };
+
+        var cut = Render<AdminLayout>();
+        cut.Find("[data-testid='location-item-101']").Click();
+
+        cut.Find("[data-testid='placement-grid-row-201']").Change("2");
+        cut.Find("[data-testid='placement-grid-column-201']").Change("3");
+        cut.Find("[data-testid='placement-stack-level-201']").Change("1");
+        cut.Find("[data-testid='placement-display-order-201']").Change("7");
+        cut.Find("[data-testid='placement-save-201']").Click();
+
+        Assert.Single(_locationService.SaveRequests);
+        Assert.Equal(2, _locationService.SaveRequests[0].GridRow);
+        Assert.Equal(3, _locationService.SaveRequests[0].GridColumn);
+        Assert.Equal(1, _locationService.SaveRequests[0].StackLevel);
+        Assert.Equal(7, _locationService.SaveRequests[0].DisplayOrder);
+    }
+
     private static FacilityAdminListItem Facility(int facilityId, string facilityCode, string name) =>
         new(facilityId, facilityCode, name, "America/Phoenix", true, null, DateTime.UtcNow, DateTime.UtcNow);
 
@@ -157,10 +237,13 @@ public sealed class AdminLayoutPageTests : BunitContext
         LocationType locationType,
         string locationCode,
         string name,
+        int? gridRow = null,
+        int? gridColumn = null,
+        int stackLevel = 0,
         int? displayOrder = null,
         bool isActive = true,
         string? notes = null) =>
-        new(locationId, facilityId, parentLocationId, locationType, locationCode, name, displayOrder, isActive, notes);
+        new(locationId, facilityId, parentLocationId, locationType, locationCode, name, gridRow, gridColumn, stackLevel, displayOrder, isActive, notes);
 
     private static IReadOnlyList<LocationAdminTreeItem> BuildTree(IReadOnlyList<LocationAdminListItem> locations, int? parentLocationId) =>
         locations
@@ -179,6 +262,42 @@ public sealed class AdminLayoutPageTests : BunitContext
                 location.Notes,
                 BuildTree(locations, location.LocationId)))
             .ToList();
+
+    private static FacilityMapFacilityOption FacilityMapFacility(int facilityId, string facilityCode, string name) =>
+        new(facilityId, new KennelTrace.Domain.Common.FacilityCode(facilityCode), name, true);
+
+    private static FacilityMapLocationDetail FacilityMapLocation(
+        int locationId,
+        int facilityId,
+        string locationCode,
+        string name,
+        LocationType locationType,
+        int? gridRow = null,
+        int? gridColumn = null,
+        int stackLevel = 0,
+        int? displayOrder = null) =>
+        new(
+            locationId,
+            facilityId,
+            101,
+            locationType,
+            new KennelTrace.Domain.Common.LocationCode(locationCode),
+            name,
+            true,
+            gridRow,
+            gridColumn,
+            stackLevel,
+            displayOrder,
+            null,
+            0,
+            []);
+
+    private static RoomMapResult RoomMap(
+        FacilityMapFacilityOption facility,
+        FacilityMapLocationDetail room,
+        IReadOnlyList<FacilityMapLocationDetail> placedLocations,
+        IReadOnlyList<FacilityMapLocationDetail> unplacedLocations) =>
+        new(facility, room, placedLocations, unplacedLocations);
 
     private sealed class FakeFacilityAdminService : IFacilityAdminService
     {
@@ -212,5 +331,19 @@ public sealed class AdminLayoutPageTests : BunitContext
             SaveRequests.Add(request);
             return Task.FromResult(OnSave?.Invoke(request) ?? LocationSaveResult.Forbidden());
         }
+    }
+
+    private sealed class FakeFacilityMapReadService : IFacilityMapReadService
+    {
+        public Dictionary<(int FacilityId, int RoomLocationId), RoomMapResult?> RoomMaps { get; } = [];
+
+        public Task<IReadOnlyList<FacilityMapFacilityOption>> ListFacilitiesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<FacilityMapFacilityOption>>([]);
+
+        public Task<IReadOnlyList<FacilityMapRoomOption>> ListRoomsAsync(int facilityId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<FacilityMapRoomOption>>([]);
+
+        public Task<RoomMapResult?> GetRoomMapAsync(int facilityId, int roomLocationId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(RoomMaps.GetValueOrDefault((facilityId, roomLocationId)));
     }
 }

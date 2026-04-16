@@ -96,3 +96,21 @@ Verification result in this shell:
 - `dotnet build KennelTrace.sln` passed.
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 35 tests.
 - `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 17 tests.
+
+## 2026-04-15 13:40:00 -07:00
+
+Implemented milestone 8C by extending the existing admin-only `/admin/layout` workflow with kennel placement editing instead of creating a separate editor surface. Kennel location saves now carry `GridRow`, `GridColumn`, `StackLevel`, and `DisplayOrder` through the existing `LocationAdminService`, with server-side validation for paired row/column input, non-negative grid values, kennel-only grid editing, and active same-room kennel placement collisions on `(ParentLocationId, GridRow, GridColumn, StackLevel)`. The selected-location form now exposes the grid fields only for kennel rows, while selected room-like parents (`Room`, `Medical`, `Isolation`, `Intake`) show a room-scoped kennel placement table that keeps unplaced kennels editable without forcing coordinates.
+
+Reused the existing read-side room-map seam by injecting `IFacilityMapReadService` into the admin page for a simple placed/unplaced preview that reflects stored data only. This keeps the grid as a display and maintenance aid and does not introduce any adjacency or trace inference from coordinates. Added SQL-backed integration coverage for paired grid validation, negative values, and active placed-kennel collisions, plus bUnit coverage for room-scoped placement editing and placed versus unplaced admin preview rendering. Commands run in this repo for this slice were:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build`
+- `dotnet test KennelTrace.sln --no-build`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed.
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build` passed with 19 tests.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` passed with 38 tests.
+- `dotnet test KennelTrace.sln --no-build` passed; the existing Playwright home-page smoke test remained intentionally skipped.

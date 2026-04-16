@@ -4,6 +4,7 @@ using KennelTrace.Domain.Features.Locations;
 using KennelTrace.Infrastructure.Persistence;
 using KennelTrace.Web.Security;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace KennelTrace.Web.Features.Locations.Admin;
@@ -48,6 +49,9 @@ public sealed class LocationAdminService(
                 x.LocationType,
                 x.LocationCode.Value,
                 x.Name,
+                x.GridRow,
+                x.GridColumn,
+                x.StackLevel,
                 x.DisplayOrder,
                 x.IsActive,
                 x.Notes))
@@ -125,6 +129,7 @@ public sealed class LocationAdminService(
         }
 
         ValidateContainmentRules(request, facilityLocations, validationErrors);
+        ValidatePlacementRules(request, facilityLocations, validationErrors);
 
         if (validationErrors.Count > 0 || locationCode is null)
         {
@@ -147,6 +152,9 @@ public sealed class LocationAdminService(
                 now,
                 request.ParentLocationId,
                 request.IsActive,
+                gridRow: request.LocationType == LocationType.Kennel ? request.GridRow : null,
+                gridColumn: request.LocationType == LocationType.Kennel ? request.GridColumn : null,
+                stackLevel: request.LocationType == LocationType.Kennel ? request.StackLevel : 0,
                 displayOrder: request.DisplayOrder,
                 notes: request.Notes);
 
@@ -164,9 +172,28 @@ public sealed class LocationAdminService(
                 request.IsActive,
                 request.Notes,
                 now);
+
+            location.SetGridPlacement(
+                request.LocationType == LocationType.Kennel ? request.GridRow : null,
+                request.LocationType == LocationType.Kennel ? request.GridColumn : null,
+                request.LocationType == LocationType.Kennel ? request.StackLevel : 0,
+                now);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsActiveKennelGridCollision(exception))
+        {
+            return LocationSaveResult.ValidationFailed(new Dictionary<string, string[]>
+            {
+                [nameof(LocationSaveRequest.GridRow)] =
+                [
+                    "Another active kennel already uses that room, row, column, and stack position."
+                ]
+            });
+        }
 
         return LocationSaveResult.Success(new LocationAdminListItem(
             location.LocationId,
@@ -175,6 +202,9 @@ public sealed class LocationAdminService(
             location.LocationType,
             location.LocationCode.Value,
             location.Name,
+            location.GridRow,
+            location.GridColumn,
+            location.StackLevel,
             location.DisplayOrder,
             location.IsActive,
             location.Notes));
@@ -200,6 +230,72 @@ public sealed class LocationAdminService(
         }
 
         return errors;
+    }
+
+    private static void ValidatePlacementRules(
+        LocationSaveRequest request,
+        IReadOnlyList<Location> facilityLocations,
+        IDictionary<string, string[]> validationErrors)
+    {
+        if (request.LocationType != LocationType.Kennel)
+        {
+            if (request.GridRow.HasValue || request.GridColumn.HasValue || request.StackLevel != 0)
+            {
+                validationErrors[nameof(LocationSaveRequest.GridRow)] = ["Grid placement can only be edited for kennel locations in MVP."];
+            }
+
+            return;
+        }
+
+        if ((request.GridRow is null) != (request.GridColumn is null))
+        {
+            var message = "GridRow and GridColumn must both be populated or both be null.";
+            validationErrors[nameof(LocationSaveRequest.GridRow)] = [message];
+            validationErrors[nameof(LocationSaveRequest.GridColumn)] = [message];
+        }
+
+        if (request.GridRow is < 0)
+        {
+            validationErrors[nameof(LocationSaveRequest.GridRow)] = ["Grid row cannot be negative."];
+        }
+
+        if (request.GridColumn is < 0)
+        {
+            validationErrors[nameof(LocationSaveRequest.GridColumn)] = ["Grid column cannot be negative."];
+        }
+
+        if (request.StackLevel < 0)
+        {
+            validationErrors[nameof(LocationSaveRequest.StackLevel)] = ["Stack level cannot be negative."];
+        }
+
+        if (validationErrors.ContainsKey(nameof(LocationSaveRequest.GridRow))
+            || validationErrors.ContainsKey(nameof(LocationSaveRequest.GridColumn))
+            || validationErrors.ContainsKey(nameof(LocationSaveRequest.StackLevel))
+            || !request.IsActive
+            || request.ParentLocationId is null
+            || request.GridRow is null
+            || request.GridColumn is null)
+        {
+            return;
+        }
+
+        var hasCollision = facilityLocations.Any(location =>
+            location.LocationId != request.LocationId
+            && location.IsActive
+            && location.LocationType == LocationType.Kennel
+            && location.ParentLocationId == request.ParentLocationId
+            && location.GridRow == request.GridRow
+            && location.GridColumn == request.GridColumn
+            && location.StackLevel == request.StackLevel);
+
+        if (hasCollision)
+        {
+            validationErrors[nameof(LocationSaveRequest.GridRow)] =
+            [
+                "Another active kennel already uses that room, row, column, and stack position."
+            ];
+        }
     }
 
     private static void ValidateContainmentRules(
@@ -331,6 +427,10 @@ public sealed class LocationAdminService(
                 BuildTree(child.LocationId, locationsByParent)))
             .ToList();
     }
+
+    private static bool IsActiveKennelGridCollision(DbUpdateException exception) =>
+        exception.InnerException is SqlException sqlException
+        && sqlException.Message.Contains("UX_Locations_ActiveKennelGridPosition", StringComparison.Ordinal);
 }
 
 public sealed record LocationAdminFacilityView(
@@ -348,6 +448,9 @@ public sealed record LocationAdminListItem(
     LocationType LocationType,
     string LocationCode,
     string Name,
+    int? GridRow,
+    int? GridColumn,
+    int StackLevel,
     int? DisplayOrder,
     bool IsActive,
     string? Notes);
@@ -371,6 +474,9 @@ public sealed record LocationSaveRequest(
     string LocationCode,
     string Name,
     int? ParentLocationId,
+    int? GridRow,
+    int? GridColumn,
+    int StackLevel,
     int? DisplayOrder,
     bool IsActive,
     string? Notes);
