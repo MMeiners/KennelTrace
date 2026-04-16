@@ -28,6 +28,10 @@
 {
     <div class="alert alert-danger" role="alert" data-testid="facility-save-error">@_facilitySaveErrorMessage</div>
 }
+else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
+{
+    <div class="alert alert-success" role="status" data-testid="facility-save-success">@_facilitySaveSuccessMessage</div>
+}
 
 <div class="row g-4">
     <section class="col-lg-5">
@@ -38,7 +42,9 @@
             <div class="card-body">
                 @if (_facilities.Count == 0)
                 {
-                    <p class="text-muted mb-0">No facilities have been created yet.</p>
+                    <div class="alert alert-info mb-0" role="status" data-testid="facility-empty-state">
+                        No facilities have been created yet. Add the pilot facility first so admins can maintain rooms, kennels, and links.
+                    </div>
                 }
                 else
                 {
@@ -179,10 +185,16 @@
         {
             <div class="alert alert-danger" role="alert" data-testid="location-save-error">@_locationSaveErrorMessage</div>
         }
+        else if (!string.IsNullOrWhiteSpace(_locationSaveSuccessMessage))
+        {
+            <div class="alert alert-success" role="status" data-testid="location-save-success">@_locationSaveSuccessMessage</div>
+        }
 
         @if (_selectedLocationFacilityId is null || _locationView is null)
         {
-            <p class="text-muted mb-0">Select or create a facility to manage its containment structure.</p>
+            <div class="alert alert-info mb-0" role="status" data-testid="location-scope-empty-state">
+                Select or create a facility to manage its containment structure. Start with a room-like space, then add kennels as child locations.
+            </div>
         }
         else
         {
@@ -201,7 +213,9 @@
 
                         @if (_locationView.RootLocations.Count == 0)
                         {
-                            <p class="text-muted mb-0" data-testid="location-empty-state">No locations have been created for this facility yet.</p>
+                            <div class="alert alert-info mb-0" role="status" data-testid="location-empty-state">
+                                No locations have been created for this facility yet. Create a room-like location first, then add kennels underneath it.
+                            </div>
                         }
                         else
                         {
@@ -385,6 +399,17 @@
                             {
                                 <div class="alert alert-danger" role="alert" data-testid="link-save-error">@_linkSaveErrorMessage</div>
                             }
+                            else if (!string.IsNullOrWhiteSpace(_linkSaveSuccessMessage))
+                            {
+                                <div class="alert alert-success" role="status" data-testid="link-save-success">@_linkSaveSuccessMessage</div>
+                            }
+
+                            @if (GetOutgoingLinks().Count == 0 && GetIncomingLinks().Count == 0)
+                            {
+                                <div class="alert alert-info" role="status" data-testid="links-empty-state">
+                                    No explicit links are stored for this location yet. Add adjacency between kennels or topology links between room-like spaces when the relationship matters for tracing.
+                                </div>
+                            }
 
                             <div class="row g-4">
                                 <section class="col-xl-6">
@@ -523,10 +548,16 @@
                             {
                                 <div class="alert alert-danger" role="alert" data-testid="room-placement-error">@_roomPlacementSaveErrorMessage</div>
                             }
+                            else if (!string.IsNullOrWhiteSpace(_roomPlacementSaveSuccessMessage))
+                            {
+                                <div class="alert alert-success" role="status" data-testid="room-placement-success">@_roomPlacementSaveSuccessMessage</div>
+                            }
 
                             @if (_roomPlacementRows.Count == 0)
                             {
-                                <p class="text-muted mb-0" data-testid="room-placement-empty">No kennel children are available for this room yet.</p>
+                                <div class="alert alert-info mb-0" role="status" data-testid="room-placement-empty">
+                                    No kennel children are available for this room yet. Add a kennel under this room before editing grid placement.
+                                </div>
                             }
                             else
                             {
@@ -621,7 +652,9 @@
                                         <div data-testid="admin-placement-preview">
                                             @if (_selectedRoomMap is null || (_selectedRoomMap.PlacedLocations.Count == 0 && _selectedRoomMap.UnplacedLocations.Count == 0))
                                             {
-                                                <p class="text-muted mb-0">No placed or unplaced locations are available for preview.</p>
+                                                <div class="alert alert-info mb-0" role="status" data-testid="admin-placement-preview-empty">
+                                                    No placed or unplaced kennel data is available for preview yet.
+                                                </div>
                                             }
                                             else
                                             {
@@ -720,6 +753,12 @@
                             }
                         </select>
                         @RenderFieldError(_linkFieldErrors, GetLinkCounterpartyFieldName())
+                        @if (GetLinkCounterpartyOptions().Count == 0)
+                        {
+                            <div class="form-text" data-testid="link-counterparty-empty">
+                                No other active locations are available in this facility yet.
+                            </div>
+                        }
                     </div>
 
                     @if (LinkTypeRules.IsTopology(_linkDialog.LinkType))
@@ -804,6 +843,7 @@
     private FacilityFormModel _facilityModel = FacilityFormModel.CreateEmpty();
     private Dictionary<string, string[]> _facilityFieldErrors = [];
     private string? _facilitySaveErrorMessage;
+    private string? _facilitySaveSuccessMessage;
 
     private int? _selectedLocationFacilityId;
     private int? _selectedLocationId;
@@ -813,11 +853,14 @@
     private List<RoomPlacementRowModel> _roomPlacementRows = [];
     private Dictionary<string, string[]> _locationFieldErrors = [];
     private string? _locationSaveErrorMessage;
+    private string? _locationSaveSuccessMessage;
     private string? _roomPlacementSaveErrorMessage;
+    private string? _roomPlacementSaveSuccessMessage;
     private LinkDialogModel? _linkDialog;
     private RemoveLinkDialogModel? _removeLinkDialog;
     private Dictionary<string, string[]> _linkFieldErrors = [];
     private string? _linkSaveErrorMessage;
+    private string? _linkSaveSuccessMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -826,8 +869,7 @@
 
     private async Task SaveFacilityAsync()
     {
-        _facilityFieldErrors.Clear();
-        _facilitySaveErrorMessage = null;
+        ClearFacilityFeedback();
 
         var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var result = await FacilityAdminService.SaveAsync(
@@ -860,12 +902,12 @@
         await ReloadFacilitiesAsync(result.Facility.FacilityId);
         SetFacilityForm(result.Facility);
         await LoadLocationFacilityAsync(result.Facility.FacilityId);
+        _facilitySaveSuccessMessage = $"{result.Facility.Name} saved. The facility is ready for room and kennel maintenance.";
     }
 
     private async Task SaveLocationAsync()
     {
-        _locationFieldErrors.Clear();
-        _locationSaveErrorMessage = null;
+        ClearLocationFeedback();
 
         if (!_selectedLocationFacilityId.HasValue)
         {
@@ -935,6 +977,7 @@
             }
 
             await LoadLocationFacilityAsync(_selectedLocationFacilityId.Value, result.Location.LocationId);
+            _locationSaveSuccessMessage = $"{result.Location.Name} saved. The layout browser and maintenance forms now reflect the stored data.";
         }
         catch (Exception)
         {
@@ -954,6 +997,8 @@
             _selectedRoomMap = null;
             _locationModel = LocationFormModel.CreateEmpty();
             _roomPlacementRows = [];
+            _roomPlacementSaveSuccessMessage = null;
+            _locationSaveSuccessMessage = null;
             ResetLinkState();
             return;
         }
@@ -973,16 +1018,14 @@
 
     private async Task SelectFacilityAsync(FacilityAdminListItem facility)
     {
-        _facilityFieldErrors.Clear();
-        _facilitySaveErrorMessage = null;
+        ClearFacilityFeedback();
         SetFacilityForm(facility);
         await LoadLocationFacilityAsync(facility.FacilityId);
     }
 
     private void StartCreate()
     {
-        _facilityFieldErrors.Clear();
-        _facilitySaveErrorMessage = null;
+        ClearFacilityFeedback();
         _facilityModel = FacilityFormModel.CreateEmpty();
     }
 
@@ -1017,8 +1060,8 @@
     {
         _selectedLocationFacilityId = facilityId;
         _locationView = await LocationAdminService.GetFacilityAsync(facilityId);
-        _locationFieldErrors.Clear();
-        _locationSaveErrorMessage = null;
+        ClearLocationFeedback();
+        ClearPlacementFeedback();
         ResetLinkState();
 
         if (_locationView is null)
@@ -1047,8 +1090,8 @@
 
     private void StartCreateLocation()
     {
-        _locationFieldErrors.Clear();
-        _locationSaveErrorMessage = null;
+        ClearLocationFeedback();
+        ClearPlacementFeedback();
         _selectedLocationId = null;
         _selectedRoomMap = null;
         _locationModel = LocationFormModel.CreateEmpty(_selectedLocationFacilityId);
@@ -1064,8 +1107,8 @@
             return;
         }
 
-        _locationFieldErrors.Clear();
-        _locationSaveErrorMessage = null;
+        ClearLocationFeedback();
+        ClearPlacementFeedback();
         _locationModel = LocationFormModel.CreateForChild(_selectedLocationFacilityId, selectedLocation.LocationId);
         ResetLinkState();
     }
@@ -1078,8 +1121,7 @@
         }
 
         var location = _locationView.Locations.Single(x => x.LocationId == locationId);
-        _locationFieldErrors.Clear();
-        _locationSaveErrorMessage = null;
+        ClearLocationFeedback();
         _selectedLocationId = location.LocationId;
         _locationModel = LocationFormModel.FromLocation(location);
         ResetLinkState();
@@ -1090,8 +1132,7 @@
     {
         if (_selectedLocationId.HasValue && _locationView?.Locations.SingleOrDefault(x => x.LocationId == _selectedLocationId.Value) is { } location)
         {
-            _locationFieldErrors.Clear();
-            _locationSaveErrorMessage = null;
+            ClearLocationFeedback();
             _locationModel = LocationFormModel.FromLocation(location);
             ResetLinkState();
             return;
@@ -1232,6 +1273,7 @@
         _removeLinkDialog = null;
         _linkFieldErrors.Clear();
         _linkSaveErrorMessage = null;
+        _linkSaveSuccessMessage = null;
         _linkDialog = new LinkDialogModel
         {
             Direction = direction
@@ -1242,6 +1284,7 @@
     {
         _linkDialog = null;
         _linkFieldErrors.Clear();
+        _linkSaveSuccessMessage = null;
     }
 
     private void OpenRemoveLinkDialog(LocationAdminLinkListItem link)
@@ -1249,6 +1292,7 @@
         _linkDialog = null;
         _linkFieldErrors.Clear();
         _linkSaveErrorMessage = null;
+        _linkSaveSuccessMessage = null;
         _removeLinkDialog = new RemoveLinkDialogModel(link);
     }
 
@@ -1309,8 +1353,7 @@
 
     private async Task SaveLinkAsync()
     {
-        _linkFieldErrors.Clear();
-        _linkSaveErrorMessage = null;
+        ClearLinkFeedback();
 
         var selectedLocation = GetSelectedLocation();
         if (_selectedLocationFacilityId is null || selectedLocation is null || _linkDialog is null)
@@ -1345,6 +1388,7 @@
 
             _linkDialog = null;
             await LoadLocationFacilityAsync(_selectedLocationFacilityId.Value, selectedLocation.LocationId);
+            _linkSaveSuccessMessage = $"{request.LinkType} saved for {selectedLocation.Name}. The read-only map now reflects the stored relationship.";
         }
         catch (Exception)
         {
@@ -1363,12 +1407,13 @@
 
         try
         {
+            var removedLink = _removeLinkDialog.Link;
             var result = await LocationLinkAdminService.RemoveAsync(
                 new LocationLinkRemoveRequest(
-                    _removeLinkDialog.Link.FacilityId,
-                    _removeLinkDialog.Link.FromLocationId,
-                    _removeLinkDialog.Link.ToLocationId,
-                    _removeLinkDialog.Link.LinkType),
+                    removedLink.FacilityId,
+                    removedLink.FromLocationId,
+                    removedLink.ToLocationId,
+                    removedLink.LinkType),
                 authenticationState.User);
 
             if (result.Status == LocationLinkRemoveStatus.Forbidden)
@@ -1391,6 +1436,8 @@
             {
                 await LoadLocationFacilityAsync(_selectedLocationFacilityId.Value, selectedLocationId.Value);
             }
+
+            _linkSaveSuccessMessage = $"{removedLink.LinkType} was removed. The reciprocal stored row was deactivated at the same time.";
         }
         catch (Exception)
         {
@@ -1404,6 +1451,7 @@
         _removeLinkDialog = null;
         _linkFieldErrors.Clear();
         _linkSaveErrorMessage = null;
+        _linkSaveSuccessMessage = null;
     }
 
     private static LocationLinkSaveRequest BuildLinkSaveRequest(int facilityId, int selectedLocationId, LinkDialogModel dialog)
@@ -1473,7 +1521,7 @@
     {
         _selectedRoomMap = null;
         _roomPlacementRows = [];
-        _roomPlacementSaveErrorMessage = null;
+        ClearPlacementFeedback();
 
         var selectedLocation = GetSelectedLocation();
         if (_selectedLocationFacilityId is null || selectedLocation is null || !IsRoomLike(selectedLocation.LocationType))
@@ -1504,7 +1552,7 @@
     {
         row.FieldErrors.Clear();
         row.SaveErrorMessage = null;
-        _roomPlacementSaveErrorMessage = null;
+        ClearPlacementFeedback();
 
         var selectedRoom = GetSelectedLocation();
         if (_selectedLocationFacilityId is null || selectedRoom is null)
@@ -1567,6 +1615,34 @@
         }
 
         await LoadLocationFacilityAsync(_selectedLocationFacilityId.Value, selectedRoom.LocationId);
+        _roomPlacementSaveSuccessMessage = $"{row.Name} placement saved for {selectedRoom.Name}.";
+    }
+
+    private void ClearFacilityFeedback()
+    {
+        _facilityFieldErrors.Clear();
+        _facilitySaveErrorMessage = null;
+        _facilitySaveSuccessMessage = null;
+    }
+
+    private void ClearLocationFeedback()
+    {
+        _locationFieldErrors.Clear();
+        _locationSaveErrorMessage = null;
+        _locationSaveSuccessMessage = null;
+    }
+
+    private void ClearPlacementFeedback()
+    {
+        _roomPlacementSaveErrorMessage = null;
+        _roomPlacementSaveSuccessMessage = null;
+    }
+
+    private void ClearLinkFeedback()
+    {
+        _linkFieldErrors.Clear();
+        _linkSaveErrorMessage = null;
+        _linkSaveSuccessMessage = null;
     }
 
     private RenderFragment RenderFieldError(IReadOnlyDictionary<string, string[]> errors, string fieldName) => builder =>

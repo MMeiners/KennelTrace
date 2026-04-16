@@ -136,3 +136,28 @@ Verification result in this shell:
 - `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj --no-build` passed with 1 passing Playwright test and 1 intentionally skipped environment-dependent home-page test.
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` passed with 44 tests.
 - `dotnet test KennelTrace.sln --no-build` passed across all three test projects.
+
+## 2026-04-15 17:35:00 -07:00
+
+Implemented milestone 8E as the admin-layout closeout slice. The existing `/admin/layout` page now gives clearer, low-friction feedback for pilot admins instead of silently relying on refreshed form state alone: facility, location, placement, and link saves now show explicit success messages; empty states for facilities, locations, link management, kennel placement, preview data, and empty link-target lists now explain the next sensible admin action; and the page code was lightly cleaned up by centralizing repeated feedback-reset logic instead of scattering the same state clearing in each handler.
+
+Replaced the earlier read-only-only Playwright smoke with one realistic admin-to-read-only workflow backed by a shared in-memory test store. The browser test now signs in as an admin, opens `/admin/layout`, creates a room, creates a child kennel, sets kennel grid placement from the room placement table, creates a topology link from the room to a hallway, then navigates to `/facility-map` and verifies that the new room, placed kennel, and stored link are visible through the read-only map path. Added bUnit coverage for the new success feedback and the more actionable empty-state copy on the admin page.
+
+Commands run in this repo for this slice were:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-restore`
+- `dotnet build KennelTrace.sln /p:UseSharedCompilation=false`
+- `dotnet build tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj /p:UseSharedCompilation=false --no-restore`
+- `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj --no-build`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build`
+- `git status --short`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` first failed because `KennelTrace.Domain.dll` was transiently locked by `VBCSCompiler`/Defender.
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-restore` passed with 23 tests.
+- `dotnet build KennelTrace.sln /p:UseSharedCompilation=false` exposed a missing `ILoggerFactory` import in the new Playwright test and also hit testhost copy-lock retries in `tests/KennelTrace.Tests`; it was not used as the final verification step.
+- `dotnet build tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj /p:UseSharedCompilation=false --no-restore` passed and compiled the new admin smoke test.
+- `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj --no-build` passed with 1 active Playwright smoke test and 1 intentionally skipped environment-dependent home-page test.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` timed out in this shell and was not used as a success signal for this slice.

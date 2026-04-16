@@ -104,6 +104,7 @@ public sealed class AdminLayoutPageTests : BunitContext
         Assert.Equal("ROOM-C", _locationService.SaveRequests[0].LocationCode);
         Assert.Contains("Room C", cut.Markup);
         Assert.Equal("ROOM-C", cut.Find("[data-testid='location-code-input']").GetAttribute("value"));
+        Assert.Contains("Room C saved.", cut.Find("[data-testid='location-save-success']").TextContent);
     }
 
     [Fact]
@@ -225,6 +226,7 @@ public sealed class AdminLayoutPageTests : BunitContext
         Assert.Equal(3, _locationService.SaveRequests[0].GridColumn);
         Assert.Equal(1, _locationService.SaveRequests[0].StackLevel);
         Assert.Equal(7, _locationService.SaveRequests[0].DisplayOrder);
+        Assert.Contains("Kennel 1 placement saved for Room A.", cut.Find("[data-testid='room-placement-success']").TextContent);
     }
 
     [Fact]
@@ -302,6 +304,7 @@ public sealed class AdminLayoutPageTests : BunitContext
         Assert.Equal(SourceType.Manual, _locationService.FacilityViews[12].Links[0].SourceType);
         Assert.Contains("AdjacentRight", cut.Find("[data-testid='outgoing-links-table']").TextContent);
         Assert.DoesNotContain("link-dialog", cut.Markup);
+        Assert.Contains("AdjacentRight saved for Kennel 1.", cut.Find("[data-testid='link-save-success']").TextContent);
     }
 
     [Fact]
@@ -347,6 +350,30 @@ public sealed class AdminLayoutPageTests : BunitContext
         Assert.Equal(201, _locationLinkService.RemoveRequests[0].FromLocationId);
         Assert.Equal(202, _locationLinkService.RemoveRequests[0].ToLocationId);
         Assert.Contains("No active outgoing links", cut.Find("[data-testid='outgoing-links-table']").TextContent);
+        Assert.Contains("AdjacentRight was removed.", cut.Find("[data-testid='link-save-success']").TextContent);
+    }
+
+    [Fact]
+    public void Empty_States_Use_Actionable_Copy()
+    {
+        _facilityService.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _locationService.FacilityViews[12] = View(
+            12,
+            "PHX",
+            "Phoenix Shelter",
+            [Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A")]);
+        _facilityMapReadService.RoomMaps[(12, 101)] = RoomMap(
+            FacilityMapFacility(12, "PHX", "Phoenix Shelter"),
+            FacilityMapLocation(101, 12, "ROOM-A", "Room A", LocationType.Room),
+            [],
+            []);
+
+        var cut = Render<AdminLayout>();
+
+        cut.Find("[data-testid='location-item-101']").Click();
+
+        Assert.Contains("Add adjacency between kennels or topology links between room-like spaces", cut.Find("[data-testid='links-empty-state']").TextContent);
+        Assert.Contains("No kennel children are available for this room yet.", cut.Find("[data-testid='room-placement-empty']").TextContent);
     }
 
     private static FacilityAdminListItem Facility(int facilityId, string facilityCode, string name) =>
