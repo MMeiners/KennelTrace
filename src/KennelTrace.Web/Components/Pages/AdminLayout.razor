@@ -1,0 +1,256 @@
+@page "/admin/layout"
+@rendermode InteractiveServer
+@using KennelTrace.Web.Features.Facilities.Admin
+@using KennelTrace.Web.Security
+@attribute [Authorize(Roles = KennelTraceRoles.Admin)]
+@inject IFacilityAdminService FacilityAdminService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Layout Admin</PageTitle>
+
+<div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 data-testid="admin-layout-page">Layout Admin</h1>
+        <p class="text-muted mb-0">Maintain facilities here. Location and link editing follow in a later slice.</p>
+    </div>
+    <button type="button" class="btn btn-outline-primary" data-testid="new-facility-button" @onclick="StartCreate">
+        New Facility
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_saveErrorMessage))
+{
+    <div class="alert alert-danger" role="alert" data-testid="save-error">@_saveErrorMessage</div>
+}
+
+<div class="row g-4">
+    <section class="col-lg-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Facilities</h2>
+            </div>
+            <div class="card-body">
+                @if (_facilities.Count == 0)
+                {
+                    <p class="text-muted mb-0">No facilities have been created yet.</p>
+                }
+                else
+                {
+                    <div class="list-group" data-testid="facility-list">
+                        @foreach (var facility in _facilities)
+                        {
+                            <button type="button"
+                                    class="@GetFacilityListButtonCssClass(facility)"
+                                    data-testid="@($"facility-list-item-{facility.FacilityId}")"
+                                    @onclick="@(() => SelectFacility(facility))">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <strong>@facility.Name</strong>
+                                    <span class="badge text-bg-@(facility.IsActive ? "success" : "secondary")">
+                                        @(facility.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </div>
+                                <div>@facility.FacilityCode</div>
+                                <small class="text-muted">@facility.TimeZoneId</small>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <section class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h2 class="h5 mb-0">@(_model.FacilityId.HasValue ? "Edit Facility" : "Create Facility")</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label" for="facility-code">Facility Code</label>
+                    <input id="facility-code"
+                           class="form-control"
+                           data-testid="facility-code-input"
+                           @bind="_model.FacilityCode" />
+                    @RenderFieldError(nameof(FacilitySaveRequest.FacilityCode))
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="facility-name">Name</label>
+                    <input id="facility-name"
+                           class="form-control"
+                           data-testid="facility-name-input"
+                           @bind="_model.Name" />
+                    @RenderFieldError(nameof(FacilitySaveRequest.Name))
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="facility-timezone">Time Zone</label>
+                    <input id="facility-timezone"
+                           class="form-control"
+                           data-testid="facility-timezone-input"
+                           @bind="_model.TimeZoneId" />
+                    @RenderFieldError(nameof(FacilitySaveRequest.TimeZoneId))
+                </div>
+
+                <div class="form-check mb-3">
+                    <input id="facility-active"
+                           class="form-check-input"
+                           type="checkbox"
+                           data-testid="facility-active-input"
+                           @bind="_model.IsActive" />
+                    <label class="form-check-label" for="facility-active">Active</label>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="facility-notes">Notes</label>
+                    <textarea id="facility-notes"
+                              class="form-control"
+                              rows="4"
+                              data-testid="facility-notes-input"
+                              @bind="_model.Notes"></textarea>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" data-testid="facility-save-button" @onclick="SaveAsync">
+                        Save Facility
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private List<FacilityAdminListItem> _facilities = [];
+    private FacilityFormModel _model = FacilityFormModel.CreateEmpty();
+    private Dictionary<string, string[]> _fieldErrors = [];
+    private string? _saveErrorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadFacilitiesAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        _fieldErrors.Clear();
+        _saveErrorMessage = null;
+
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var result = await FacilityAdminService.SaveAsync(
+            new FacilitySaveRequest(
+                _model.FacilityId,
+                _model.FacilityCode,
+                _model.Name,
+                _model.TimeZoneId,
+                _model.IsActive,
+                _model.Notes),
+            authenticationState.User);
+
+        if (result.Status == FacilitySaveStatus.Forbidden)
+        {
+            _saveErrorMessage = "Only admins can save facility changes.";
+            return;
+        }
+
+        if (result.Status == FacilitySaveStatus.ValidationFailed)
+        {
+            _fieldErrors = result.ValidationErrors.ToDictionary(pair => pair.Key, pair => pair.Value);
+            return;
+        }
+
+        await ReloadFacilitiesAsync();
+
+        if (result.Facility is not null)
+        {
+            SelectFacility(_facilities.Single(facility => facility.FacilityId == result.Facility.FacilityId));
+        }
+    }
+
+    private async Task ReloadFacilitiesAsync()
+    {
+        _facilities = (await FacilityAdminService.ListFacilitiesAsync()).ToList();
+    }
+
+    private void StartCreate()
+    {
+        _fieldErrors.Clear();
+        _saveErrorMessage = null;
+        _model = FacilityFormModel.CreateEmpty();
+    }
+
+    private void SelectFacility(FacilityAdminListItem facility)
+    {
+        _fieldErrors.Clear();
+        _saveErrorMessage = null;
+        _model = FacilityFormModel.FromFacility(facility);
+    }
+
+    private void ResetForm()
+    {
+        if (_model.FacilityId.HasValue)
+        {
+            var selectedFacility = _facilities.Single(facility => facility.FacilityId == _model.FacilityId.Value);
+            SelectFacility(selectedFacility);
+            return;
+        }
+
+        StartCreate();
+    }
+
+    private RenderFragment RenderFieldError(string fieldName) => builder =>
+    {
+        if (!_fieldErrors.TryGetValue(fieldName, out var messages))
+        {
+            return;
+        }
+
+        var sequence = 0;
+        foreach (var message in messages)
+        {
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "text-danger small mt-1");
+            builder.AddContent(sequence++, message);
+            builder.CloseElement();
+        }
+    };
+
+    private string GetFacilityListButtonCssClass(FacilityAdminListItem facility)
+    {
+        const string baseCss = "list-group-item list-group-item-action text-start";
+        return facility.FacilityId == _model.FacilityId
+            ? $"{baseCss} active"
+            : baseCss;
+    }
+
+    private sealed class FacilityFormModel
+    {
+        public int? FacilityId { get; set; }
+
+        public string FacilityCode { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public string TimeZoneId { get; set; } = "America/Phoenix";
+
+        public bool IsActive { get; set; } = true;
+
+        public string? Notes { get; set; }
+
+        public static FacilityFormModel CreateEmpty() => new();
+
+        public static FacilityFormModel FromFacility(FacilityAdminListItem facility) =>
+            new()
+            {
+                FacilityId = facility.FacilityId,
+                FacilityCode = facility.FacilityCode,
+                Name = facility.Name,
+                TimeZoneId = facility.TimeZoneId,
+                IsActive = facility.IsActive,
+                Notes = facility.Notes
+            };
+    }
+}

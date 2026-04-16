@@ -59,3 +59,20 @@ Added scoped page styling plus focused test updates in `tests/KennelTrace.Web.Te
 Added a Development-only database bootstrap path so the local web app is usable without a separate manual EF/database step. On startup, `KennelTrace.Web` now calls a new development setup helper that applies pending SQL Server migrations and seeds one small facility-map dataset if facility `DEV-PHX` does not already exist. The seed is intentionally minimal and idempotent: one facility, one room, one hallway, several kennels including an unplaced kennel, explicit stored room and kennel links, and one current occupant via an open `MovementEvent`. Non-development environments still do not auto-migrate or auto-seed.
 
 Updated `README.md` to document the new local-development startup behavior and kept the change scoped to local convenience rather than canonical production behavior. Verified the change with `dotnet build KennelTrace.sln` and `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build`. A first `dotnet test` attempt after the build hit a transient Roslyn compiler file lock from `VBCSCompiler`; rerunning the test project with `--no-build` passed cleanly.
+
+## 2026-04-15 10:30:00 -07:00
+
+Implemented milestone 8A with the first admin-only maintenance slice for facilities plus the minimum authorization foundation the current repo can support cleanly. The web app now has an explicit role catalog for `ReadOnly` and `Admin`, an `AdminOnly` policy for protected save workflows, a development-only simulated authenticated principal configured through `appsettings.Development.json`, `AuthorizeRouteView` route protection, an admin-only `/admin/layout` page, and a nav entry that only renders for admins. Facility maintenance stays form-based and limited to facilities in this slice: admins can create or edit `FacilityCode`, `Name`, `TimeZoneId`, `IsActive`, and `Notes`, with active/inactive handling instead of delete and friendly duplicate-code validation.
+
+The protected facility write path now runs through a dedicated `FacilityAdminService` that checks admin authorization server-side before saving, preserves `CreatedUtc`, updates `ModifiedUtc`, and rejects non-admin write attempts even if the UI path is bypassed. Added bUnit coverage for admin-vs-read-only nav and route behavior plus SQL-backed integration tests for facility create/update, duplicate `FacilityCode`, and non-admin write rejection. Commands run in this repo for this slice were:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build`
+- `git status --short`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed.
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` failed because the repository's SQL Server-backed integration suites could not connect to a local SQL Server instance using the default `KENNELTRACE_TEST_SQLSERVER`/`localhost` configuration on this machine.
