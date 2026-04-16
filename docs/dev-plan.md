@@ -98,7 +98,7 @@ Have shelter staff review:
 - adjacency correctness
 - topology links that matter operationally
 
-## Step 5: Build the read-only facility and kennel map
+## Step 5-7: Build the read-only facility and kennel map
 
 ### Deliverables
 
@@ -122,7 +122,7 @@ This gives staff immediate operational value and validates whether the imported 
 
 Ask staff whether they can stop using the Word document for lookup in at least one facility.
 
-## Step 6: Build admin maintenance for locations and links
+## Step 8: Build admin maintenance for locations and links
 
 ### Deliverables
 
@@ -146,7 +146,7 @@ Once staff can view the data, admins need a way to maintain it without round-tri
 
 Have an admin correct known layout issues and verify that the changes are easier than editing the old documents.
 
-## Step 7: Build animal records and movement history
+## Step 9: Build animal records and movement history
 
 ### Deliverables
 
@@ -171,7 +171,7 @@ Tracing is only as good as movement history. This step creates the time-based da
 
 Walk through a few real movement scenarios from intake to transfer to isolation.
 
-## Step 8: Build disease profiles and trace service
+## Step 10: Build disease profiles and trace service
 
 ### Deliverables
 
@@ -196,7 +196,7 @@ By this point, the app has layout, graph links, and movement history. The trace 
 
 Run trace exercises based on real historical or hypothetical disease scenarios and verify that results match staff expectations.
 
-## Step 9: Build trace UI
+## Step 11: Build trace UI
 
 ### Deliverables
 
@@ -216,7 +216,7 @@ The UI should sit on top of already-tested trace logic rather than defining it.
 - result tables
 - navigation links from animal and map screens into trace flow
 
-## Step 10: Refine with real usage before Phase 2 features
+## Step 12: Refine with real usage before Phase 2 features
 
 ### Deliverables
 
