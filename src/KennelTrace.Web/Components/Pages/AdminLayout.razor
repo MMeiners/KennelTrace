@@ -1,9 +1,12 @@
 @page "/admin/layout"
 @rendermode InteractiveServer
+@using KennelTrace.Domain.Features.Locations
 @using KennelTrace.Web.Features.Facilities.Admin
+@using KennelTrace.Web.Features.Locations.Admin
 @using KennelTrace.Web.Security
 @attribute [Authorize(Roles = KennelTraceRoles.Admin)]
 @inject IFacilityAdminService FacilityAdminService
+@inject ILocationAdminService LocationAdminService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Layout Admin</PageTitle>
@@ -11,16 +14,16 @@
 <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
     <div>
         <h1 data-testid="admin-layout-page">Layout Admin</h1>
-        <p class="text-muted mb-0">Maintain facilities here. Location and link editing follow in a later slice.</p>
+        <p class="text-muted mb-0">Maintain facilities and containment structure here. Link editing remains in a later slice.</p>
     </div>
     <button type="button" class="btn btn-outline-primary" data-testid="new-facility-button" @onclick="StartCreate">
         New Facility
     </button>
 </div>
 
-@if (!string.IsNullOrWhiteSpace(_saveErrorMessage))
+@if (!string.IsNullOrWhiteSpace(_facilitySaveErrorMessage))
 {
-    <div class="alert alert-danger" role="alert" data-testid="save-error">@_saveErrorMessage</div>
+    <div class="alert alert-danger" role="alert" data-testid="facility-save-error">@_facilitySaveErrorMessage</div>
 }
 
 <div class="row g-4">
@@ -42,7 +45,7 @@
                             <button type="button"
                                     class="@GetFacilityListButtonCssClass(facility)"
                                     data-testid="@($"facility-list-item-{facility.FacilityId}")"
-                                    @onclick="@(() => SelectFacility(facility))">
+                                    @onclick="@(() => SelectFacilityAsync(facility))">
                                 <div class="d-flex w-100 justify-content-between">
                                     <strong>@facility.Name</strong>
                                     <span class="badge text-bg-@(facility.IsActive ? "success" : "secondary")">
@@ -62,7 +65,7 @@
     <section class="col-lg-7">
         <div class="card shadow-sm">
             <div class="card-header">
-                <h2 class="h5 mb-0">@(_model.FacilityId.HasValue ? "Edit Facility" : "Create Facility")</h2>
+                <h2 class="h5 mb-0">@(_facilityModel.FacilityId.HasValue ? "Edit Facility" : "Create Facility")</h2>
             </div>
             <div class="card-body">
                 <div class="mb-3">
@@ -70,8 +73,8 @@
                     <input id="facility-code"
                            class="form-control"
                            data-testid="facility-code-input"
-                           @bind="_model.FacilityCode" />
-                    @RenderFieldError(nameof(FacilitySaveRequest.FacilityCode))
+                           @bind="_facilityModel.FacilityCode" />
+                    @RenderFieldError(_facilityFieldErrors, nameof(FacilitySaveRequest.FacilityCode))
                 </div>
 
                 <div class="mb-3">
@@ -79,8 +82,8 @@
                     <input id="facility-name"
                            class="form-control"
                            data-testid="facility-name-input"
-                           @bind="_model.Name" />
-                    @RenderFieldError(nameof(FacilitySaveRequest.Name))
+                           @bind="_facilityModel.Name" />
+                    @RenderFieldError(_facilityFieldErrors, nameof(FacilitySaveRequest.Name))
                 </div>
 
                 <div class="mb-3">
@@ -88,8 +91,8 @@
                     <input id="facility-timezone"
                            class="form-control"
                            data-testid="facility-timezone-input"
-                           @bind="_model.TimeZoneId" />
-                    @RenderFieldError(nameof(FacilitySaveRequest.TimeZoneId))
+                           @bind="_facilityModel.TimeZoneId" />
+                    @RenderFieldError(_facilityFieldErrors, nameof(FacilitySaveRequest.TimeZoneId))
                 </div>
 
                 <div class="form-check mb-3">
@@ -97,7 +100,7 @@
                            class="form-check-input"
                            type="checkbox"
                            data-testid="facility-active-input"
-                           @bind="_model.IsActive" />
+                           @bind="_facilityModel.IsActive" />
                     <label class="form-check-label" for="facility-active">Active</label>
                 </div>
 
@@ -107,14 +110,14 @@
                               class="form-control"
                               rows="4"
                               data-testid="facility-notes-input"
-                              @bind="_model.Notes"></textarea>
+                              @bind="_facilityModel.Notes"></textarea>
                 </div>
 
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" data-testid="facility-save-button" @onclick="SaveAsync">
+                    <button type="button" class="btn btn-primary" data-testid="facility-save-button" @onclick="SaveFacilityAsync">
                         Save Facility
                     </button>
-                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetFacilityForm">
                         Reset
                     </button>
                 </div>
@@ -123,87 +126,565 @@
     </section>
 </div>
 
+<section class="card shadow-sm mt-4">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-end gap-3">
+        <div>
+            <h2 class="h5 mb-1">Locations</h2>
+            <p class="text-muted mb-0">Browse facility structure and create, edit, or deactivate room-like spaces and kennels.</p>
+        </div>
+        <div class="d-flex flex-wrap align-items-end gap-2">
+            <div>
+                <label class="form-label mb-1" for="location-facility-select">Facility</label>
+                <select id="location-facility-select"
+                        class="form-select"
+                        data-testid="location-facility-select"
+                        value="@(_selectedLocationFacilityId?.ToString() ?? string.Empty)"
+                        @onchange="OnLocationFacilityChanged">
+                    @if (_facilities.Count == 0)
+                    {
+                        <option value="">No facilities</option>
+                    }
+                    else
+                    {
+                        @foreach (var facility in _facilities)
+                        {
+                            <option value="@facility.FacilityId">
+                                @facility.Name (@facility.FacilityCode)
+                            </option>
+                        }
+                    }
+                </select>
+            </div>
+            <button type="button"
+                    class="btn btn-outline-primary"
+                    data-testid="new-location-button"
+                    disabled="@(!_selectedLocationFacilityId.HasValue)"
+                    @onclick="StartCreateLocation">
+                New Location
+            </button>
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    data-testid="new-child-location-button"
+                    disabled="@(!CanCreateChildLocation())"
+                    @onclick="StartCreateChildLocation">
+                New Child
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (!string.IsNullOrWhiteSpace(_locationSaveErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert" data-testid="location-save-error">@_locationSaveErrorMessage</div>
+        }
+
+        @if (_selectedLocationFacilityId is null || _locationView is null)
+        {
+            <p class="text-muted mb-0">Select or create a facility to manage its containment structure.</p>
+        }
+        else
+        {
+            <div class="row g-4">
+                <section class="col-lg-5">
+                    <div class="border rounded p-3 h-100">
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                            <div>
+                                <div class="fw-semibold">@_locationView.FacilityName</div>
+                                <div class="text-muted small">@_locationView.FacilityCode</div>
+                            </div>
+                            <span class="badge text-bg-@(_locationView.IsActive ? "success" : "secondary")">
+                                @(_locationView.IsActive ? "Facility Active" : "Facility Inactive")
+                            </span>
+                        </div>
+
+                        @if (_locationView.RootLocations.Count == 0)
+                        {
+                            <p class="text-muted mb-0" data-testid="location-empty-state">No locations have been created for this facility yet.</p>
+                        }
+                        else
+                        {
+                            <div data-testid="location-browser-tree">
+                                @foreach (var root in _locationView.RootLocations)
+                                {
+                                    @RenderLocationNode(root)
+                                }
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                <section class="col-lg-7">
+                    <div class="border rounded p-3 h-100" data-testid="location-form">
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                            <h3 class="h5 mb-0">@(_locationModel.LocationId.HasValue ? "Edit Location" : "Create Location")</h3>
+                            @if (_selectedLocationId.HasValue)
+                            {
+                                <span class="badge text-bg-@(_locationModel.IsActive ? "success" : "secondary")">
+                                    @(_locationModel.IsActive ? "Active" : "Inactive")
+                                </span>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="location-type-input">Location Type</label>
+                            <select id="location-type-input"
+                                    class="form-select"
+                                    data-testid="location-type-input"
+                                    value="@_locationModel.LocationType.ToString()"
+                                    @onchange="OnLocationTypeChanged">
+                                @foreach (var locationType in Enum.GetValues<LocationType>())
+                                {
+                                    <option value="@locationType">@locationType</option>
+                                }
+                            </select>
+                            @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.LocationType))
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="location-code-input">Location Code</label>
+                            <input id="location-code-input"
+                                   class="form-control"
+                                   data-testid="location-code-input"
+                                   @bind="_locationModel.LocationCode" />
+                            @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.LocationCode))
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="location-name-input">Name</label>
+                            <input id="location-name-input"
+                                   class="form-control"
+                                   data-testid="location-name-input"
+                                   @bind="_locationModel.Name" />
+                            @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.Name))
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="parent-location-input">Parent Location</label>
+                            <select id="parent-location-input"
+                                    class="form-select"
+                                    data-testid="parent-location-input"
+                                    value="@(_locationModel.ParentLocationId?.ToString() ?? string.Empty)"
+                                    @onchange="OnParentLocationChanged">
+                                @if (LocationTypeRules.CanAppearAtFacilityRoot(_locationModel.LocationType))
+                                {
+                                    <option value="">No parent (facility root)</option>
+                                }
+                                else
+                                {
+                                    <option value="">Select a parent</option>
+                                }
+
+                                @foreach (var parentOption in GetAvailableParentLocations())
+                                {
+                                    <option value="@parentOption.LocationId">
+                                        @parentOption.Name (@parentOption.LocationCode) - @parentOption.LocationType
+                                    </option>
+                                }
+                            </select>
+                            @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.ParentLocationId))
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="display-order-input">Display Order</label>
+                            <input id="display-order-input"
+                                   type="number"
+                                   class="form-control"
+                                   data-testid="display-order-input"
+                                   @bind="_locationModel.DisplayOrderText" />
+                            @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.DisplayOrder))
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input id="location-active-input"
+                                   class="form-check-input"
+                                   type="checkbox"
+                                   data-testid="location-active-input"
+                                   @bind="_locationModel.IsActive" />
+                            <label class="form-check-label" for="location-active-input">Active</label>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="location-notes-input">Notes</label>
+                            <textarea id="location-notes-input"
+                                      class="form-control"
+                                      rows="4"
+                                      data-testid="location-notes-input"
+                                      @bind="_locationModel.Notes"></textarea>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary" data-testid="location-save-button" @onclick="SaveLocationAsync">
+                                Save Location
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="ResetLocationForm">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        }
+    </div>
+</section>
+
 @code {
     private List<FacilityAdminListItem> _facilities = [];
-    private FacilityFormModel _model = FacilityFormModel.CreateEmpty();
-    private Dictionary<string, string[]> _fieldErrors = [];
-    private string? _saveErrorMessage;
+    private FacilityFormModel _facilityModel = FacilityFormModel.CreateEmpty();
+    private Dictionary<string, string[]> _facilityFieldErrors = [];
+    private string? _facilitySaveErrorMessage;
+
+    private int? _selectedLocationFacilityId;
+    private int? _selectedLocationId;
+    private LocationAdminFacilityView? _locationView;
+    private LocationFormModel _locationModel = LocationFormModel.CreateEmpty();
+    private Dictionary<string, string[]> _locationFieldErrors = [];
+    private string? _locationSaveErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
         await ReloadFacilitiesAsync();
     }
 
-    private async Task SaveAsync()
+    private async Task SaveFacilityAsync()
     {
-        _fieldErrors.Clear();
-        _saveErrorMessage = null;
+        _facilityFieldErrors.Clear();
+        _facilitySaveErrorMessage = null;
 
         var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var result = await FacilityAdminService.SaveAsync(
             new FacilitySaveRequest(
-                _model.FacilityId,
-                _model.FacilityCode,
-                _model.Name,
-                _model.TimeZoneId,
-                _model.IsActive,
-                _model.Notes),
+                _facilityModel.FacilityId,
+                _facilityModel.FacilityCode,
+                _facilityModel.Name,
+                _facilityModel.TimeZoneId,
+                _facilityModel.IsActive,
+                _facilityModel.Notes),
             authenticationState.User);
 
         if (result.Status == FacilitySaveStatus.Forbidden)
         {
-            _saveErrorMessage = "Only admins can save facility changes.";
+            _facilitySaveErrorMessage = "Only admins can save facility changes.";
             return;
         }
 
         if (result.Status == FacilitySaveStatus.ValidationFailed)
         {
-            _fieldErrors = result.ValidationErrors.ToDictionary(pair => pair.Key, pair => pair.Value);
+            _facilityFieldErrors = result.ValidationErrors.ToDictionary(pair => pair.Key, pair => pair.Value);
             return;
         }
 
-        await ReloadFacilitiesAsync();
-
-        if (result.Facility is not null)
+        if (result.Facility is null)
         {
-            SelectFacility(_facilities.Single(facility => facility.FacilityId == result.Facility.FacilityId));
+            return;
+        }
+
+        await ReloadFacilitiesAsync(result.Facility.FacilityId);
+        SetFacilityForm(result.Facility);
+        await LoadLocationFacilityAsync(result.Facility.FacilityId);
+    }
+
+    private async Task SaveLocationAsync()
+    {
+        _locationFieldErrors.Clear();
+        _locationSaveErrorMessage = null;
+
+        if (!_selectedLocationFacilityId.HasValue)
+        {
+            _locationFieldErrors[nameof(LocationSaveRequest.FacilityId)] = ["Select a facility before saving a location."];
+            return;
+        }
+
+        if (!TryParseDisplayOrder(_locationModel.DisplayOrderText, out var displayOrder))
+        {
+            _locationFieldErrors[nameof(LocationSaveRequest.DisplayOrder)] = ["Display order must be a whole number."];
+            return;
+        }
+
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        try
+        {
+            var result = await LocationAdminService.SaveAsync(
+                new LocationSaveRequest(
+                    _locationModel.LocationId,
+                    _selectedLocationFacilityId.Value,
+                    _locationModel.LocationType,
+                    _locationModel.LocationCode,
+                    _locationModel.Name,
+                    _locationModel.ParentLocationId,
+                    displayOrder,
+                    _locationModel.IsActive,
+                    _locationModel.Notes),
+                authenticationState.User);
+
+            if (result.Status == LocationSaveStatus.Forbidden)
+            {
+                _locationSaveErrorMessage = "Only admins can save location changes.";
+                return;
+            }
+
+            if (result.Status == LocationSaveStatus.ValidationFailed)
+            {
+                _locationFieldErrors = result.ValidationErrors.ToDictionary(pair => pair.Key, pair => pair.Value);
+                return;
+            }
+
+            if (result.Location is null)
+            {
+                return;
+            }
+
+            await LoadLocationFacilityAsync(_selectedLocationFacilityId.Value, result.Location.LocationId);
+        }
+        catch (Exception)
+        {
+            _locationSaveErrorMessage = "The location could not be saved. Refresh the facility and try again.";
         }
     }
 
-    private async Task ReloadFacilitiesAsync()
+    private async Task ReloadFacilitiesAsync(int? preferredFacilityId = null)
     {
         _facilities = (await FacilityAdminService.ListFacilitiesAsync()).ToList();
+
+        if (_facilities.Count == 0)
+        {
+            _selectedLocationFacilityId = null;
+            _selectedLocationId = null;
+            _locationView = null;
+            _locationModel = LocationFormModel.CreateEmpty();
+            return;
+        }
+
+        var facilityToLoad = preferredFacilityId
+                             ?? _selectedLocationFacilityId
+                             ?? _facilityModel.FacilityId
+                             ?? _facilities[0].FacilityId;
+
+        if (_facilities.All(x => x.FacilityId != facilityToLoad))
+        {
+            facilityToLoad = _facilities[0].FacilityId;
+        }
+
+        await LoadLocationFacilityAsync(facilityToLoad);
+    }
+
+    private async Task SelectFacilityAsync(FacilityAdminListItem facility)
+    {
+        _facilityFieldErrors.Clear();
+        _facilitySaveErrorMessage = null;
+        SetFacilityForm(facility);
+        await LoadLocationFacilityAsync(facility.FacilityId);
     }
 
     private void StartCreate()
     {
-        _fieldErrors.Clear();
-        _saveErrorMessage = null;
-        _model = FacilityFormModel.CreateEmpty();
+        _facilityFieldErrors.Clear();
+        _facilitySaveErrorMessage = null;
+        _facilityModel = FacilityFormModel.CreateEmpty();
     }
 
-    private void SelectFacility(FacilityAdminListItem facility)
+    private void ResetFacilityForm()
     {
-        _fieldErrors.Clear();
-        _saveErrorMessage = null;
-        _model = FacilityFormModel.FromFacility(facility);
-    }
-
-    private void ResetForm()
-    {
-        if (_model.FacilityId.HasValue)
+        if (_facilityModel.FacilityId.HasValue)
         {
-            var selectedFacility = _facilities.Single(facility => facility.FacilityId == _model.FacilityId.Value);
-            SelectFacility(selectedFacility);
+            var selectedFacility = _facilities.Single(facility => facility.FacilityId == _facilityModel.FacilityId.Value);
+            SetFacilityForm(selectedFacility);
             return;
         }
 
         StartCreate();
     }
 
-    private RenderFragment RenderFieldError(string fieldName) => builder =>
+    private async Task OnLocationFacilityChanged(ChangeEventArgs args)
     {
-        if (!_fieldErrors.TryGetValue(fieldName, out var messages))
+        if (!int.TryParse(args.Value?.ToString(), out var facilityId))
+        {
+            return;
+        }
+
+        if (_facilities.SingleOrDefault(x => x.FacilityId == facilityId) is { } facility)
+        {
+            SetFacilityForm(facility);
+        }
+
+        await LoadLocationFacilityAsync(facilityId);
+    }
+
+    private async Task LoadLocationFacilityAsync(int facilityId, int? preferredLocationId = null)
+    {
+        _selectedLocationFacilityId = facilityId;
+        _locationView = await LocationAdminService.GetFacilityAsync(facilityId);
+        _locationFieldErrors.Clear();
+        _locationSaveErrorMessage = null;
+
+        if (_locationView is null)
+        {
+            _selectedLocationId = null;
+            _locationModel = LocationFormModel.CreateEmpty();
+            return;
+        }
+
+        var locationIdToSelect = preferredLocationId;
+        if (!locationIdToSelect.HasValue && _selectedLocationId.HasValue && _locationView.Locations.Any(x => x.LocationId == _selectedLocationId.Value))
+        {
+            locationIdToSelect = _selectedLocationId.Value;
+        }
+
+        if (locationIdToSelect.HasValue && _locationView.Locations.SingleOrDefault(x => x.LocationId == locationIdToSelect.Value) is { } selectedLocation)
+        {
+            SelectLocation(selectedLocation.LocationId);
+            return;
+        }
+
+        StartCreateLocation();
+    }
+
+    private void StartCreateLocation()
+    {
+        _locationFieldErrors.Clear();
+        _locationSaveErrorMessage = null;
+        _selectedLocationId = null;
+        _locationModel = LocationFormModel.CreateEmpty(_selectedLocationFacilityId);
+    }
+
+    private void StartCreateChildLocation()
+    {
+        var selectedLocation = GetSelectedLocation();
+        if (selectedLocation is null || !LocationTypeRules.CanBeContainmentParent(selectedLocation.LocationType))
+        {
+            return;
+        }
+
+        _locationFieldErrors.Clear();
+        _locationSaveErrorMessage = null;
+        _selectedLocationId = null;
+        _locationModel = LocationFormModel.CreateForChild(_selectedLocationFacilityId, selectedLocation.LocationId);
+    }
+
+    private void SelectLocation(int locationId)
+    {
+        if (_locationView is null)
+        {
+            return;
+        }
+
+        var location = _locationView.Locations.Single(x => x.LocationId == locationId);
+        _locationFieldErrors.Clear();
+        _locationSaveErrorMessage = null;
+        _selectedLocationId = location.LocationId;
+        _locationModel = LocationFormModel.FromLocation(location);
+    }
+
+    private void ResetLocationForm()
+    {
+        if (_selectedLocationId.HasValue && _locationView?.Locations.SingleOrDefault(x => x.LocationId == _selectedLocationId.Value) is { } location)
+        {
+            _locationFieldErrors.Clear();
+            _locationSaveErrorMessage = null;
+            _locationModel = LocationFormModel.FromLocation(location);
+            return;
+        }
+
+        StartCreateLocation();
+    }
+
+    private void OnLocationTypeChanged(ChangeEventArgs args)
+    {
+        if (!Enum.TryParse<LocationType>(args.Value?.ToString(), out var locationType))
+        {
+            return;
+        }
+
+        _locationModel.LocationType = locationType;
+
+        if (_locationModel.ParentLocationId.HasValue &&
+            GetAvailableParentLocations().All(x => x.LocationId != _locationModel.ParentLocationId.Value))
+        {
+            _locationModel.ParentLocationId = null;
+        }
+    }
+
+    private void OnParentLocationChanged(ChangeEventArgs args)
+    {
+        _locationModel.ParentLocationId = int.TryParse(args.Value?.ToString(), out var parentLocationId)
+            ? parentLocationId
+            : null;
+    }
+
+    private IReadOnlyList<LocationAdminListItem> GetAvailableParentLocations()
+    {
+        if (_locationView is null)
+        {
+            return [];
+        }
+
+        var excludedLocationIds = _locationModel.LocationId.HasValue
+            ? GetDescendantLocationIds(_locationModel.LocationId.Value).Append(_locationModel.LocationId.Value).ToHashSet()
+            : [];
+
+        return _locationView.Locations
+            .Where(location =>
+                !excludedLocationIds.Contains(location.LocationId) &&
+                LocationTypeRules.CanContainChild(location.LocationType, _locationModel.LocationType))
+            .OrderBy(location => location.Name)
+            .ThenBy(location => location.LocationCode)
+            .ToList();
+    }
+
+    private IEnumerable<int> GetDescendantLocationIds(int locationId)
+    {
+        if (_locationView is null)
+        {
+            yield break;
+        }
+
+        var childIds = _locationView.Locations
+            .Where(x => x.ParentLocationId == locationId)
+            .Select(x => x.LocationId)
+            .ToList();
+
+        foreach (var childId in childIds)
+        {
+            yield return childId;
+
+            foreach (var descendantId in GetDescendantLocationIds(childId))
+            {
+                yield return descendantId;
+            }
+        }
+    }
+
+    private bool CanCreateChildLocation()
+    {
+        var selectedLocation = GetSelectedLocation();
+        return selectedLocation is not null && LocationTypeRules.CanBeContainmentParent(selectedLocation.LocationType);
+    }
+
+    private LocationAdminListItem? GetSelectedLocation() =>
+        _selectedLocationId.HasValue
+            ? _locationView?.Locations.SingleOrDefault(x => x.LocationId == _selectedLocationId.Value)
+            : null;
+
+    private static bool TryParseDisplayOrder(string? value, out int? displayOrder)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            displayOrder = null;
+            return true;
+        }
+
+        if (int.TryParse(value, out var parsedValue))
+        {
+            displayOrder = parsedValue;
+            return true;
+        }
+
+        displayOrder = null;
+        return false;
+    }
+
+    private RenderFragment RenderFieldError(IReadOnlyDictionary<string, string[]> errors, string fieldName) => builder =>
+    {
+        if (!errors.TryGetValue(fieldName, out var messages))
         {
             return;
         }
@@ -218,12 +699,97 @@
         }
     };
 
+    private RenderFragment RenderLocationNode(LocationAdminTreeItem location) => builder =>
+    {
+        var sequence = 0;
+
+        builder.OpenElement(sequence++, "div");
+        builder.AddAttribute(sequence++, "class", "mb-2");
+
+        builder.OpenElement(sequence++, "button");
+        builder.AddAttribute(sequence++, "type", "button");
+        builder.AddAttribute(sequence++, "class", GetLocationListButtonCssClass(location));
+        builder.AddAttribute(sequence++, "data-testid", $"location-item-{location.LocationId}");
+        builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => SelectLocation(location.LocationId)));
+
+        builder.OpenElement(sequence++, "div");
+        builder.AddAttribute(sequence++, "class", "d-flex justify-content-between align-items-center gap-2");
+
+        builder.OpenElement(sequence++, "span");
+        builder.AddContent(sequence++, location.Name);
+        builder.CloseElement();
+
+        builder.OpenElement(sequence++, "span");
+        builder.AddAttribute(sequence++, "class", "d-flex gap-1 flex-wrap");
+
+        builder.OpenElement(sequence++, "span");
+        builder.AddAttribute(sequence++, "class", "badge text-bg-light");
+        builder.AddContent(sequence++, location.LocationType.ToString());
+        builder.CloseElement();
+
+        if (!location.IsActive)
+        {
+            builder.OpenElement(sequence++, "span");
+            builder.AddAttribute(sequence++, "class", "badge text-bg-secondary");
+            builder.AddContent(sequence++, "Inactive");
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(sequence++, "div");
+        builder.AddAttribute(sequence++, "class", "small");
+        builder.AddContent(sequence++, location.LocationCode);
+        builder.CloseElement();
+
+        if (location.DisplayOrder.HasValue)
+        {
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "small text-muted");
+            builder.AddContent(sequence++, $"Display order {location.DisplayOrder.Value}");
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+
+        if (location.Children.Count > 0)
+        {
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "border-start ps-3 ms-3");
+
+            foreach (var child in location.Children)
+            {
+                builder.AddContent(sequence++, RenderLocationNode(child));
+            }
+
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
     private string GetFacilityListButtonCssClass(FacilityAdminListItem facility)
     {
         const string baseCss = "list-group-item list-group-item-action text-start";
-        return facility.FacilityId == _model.FacilityId
+        return facility.FacilityId == _facilityModel.FacilityId
             ? $"{baseCss} active"
             : baseCss;
+    }
+
+    private string GetLocationListButtonCssClass(LocationAdminTreeItem location)
+    {
+        const string baseCss = "btn btn-outline-secondary w-100 text-start";
+        var selectedCss = location.LocationId == _selectedLocationId ? " active" : string.Empty;
+        var inactiveCss = location.IsActive ? string.Empty : " opacity-75";
+        return $"{baseCss}{selectedCss}{inactiveCss}";
+    }
+
+    private void SetFacilityForm(FacilityAdminListItem facility)
+    {
+        _facilityFieldErrors.Clear();
+        _facilitySaveErrorMessage = null;
+        _facilityModel = FacilityFormModel.FromFacility(facility);
     }
 
     private sealed class FacilityFormModel
@@ -251,6 +817,55 @@
                 TimeZoneId = facility.TimeZoneId,
                 IsActive = facility.IsActive,
                 Notes = facility.Notes
+            };
+    }
+
+    private sealed class LocationFormModel
+    {
+        public int? LocationId { get; set; }
+
+        public int? FacilityId { get; set; }
+
+        public LocationType LocationType { get; set; } = LocationType.Room;
+
+        public string LocationCode { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public int? ParentLocationId { get; set; }
+
+        public string? DisplayOrderText { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        public string? Notes { get; set; }
+
+        public static LocationFormModel CreateEmpty(int? facilityId = null) =>
+            new()
+            {
+                FacilityId = facilityId
+            };
+
+        public static LocationFormModel CreateForChild(int? facilityId, int parentLocationId) =>
+            new()
+            {
+                FacilityId = facilityId,
+                LocationType = LocationType.Kennel,
+                ParentLocationId = parentLocationId
+            };
+
+        public static LocationFormModel FromLocation(LocationAdminListItem location) =>
+            new()
+            {
+                LocationId = location.LocationId,
+                FacilityId = location.FacilityId,
+                LocationType = location.LocationType,
+                LocationCode = location.LocationCode,
+                Name = location.Name,
+                ParentLocationId = location.ParentLocationId,
+                DisplayOrderText = location.DisplayOrder?.ToString(),
+                IsActive = location.IsActive,
+                Notes = location.Notes
             };
     }
 }

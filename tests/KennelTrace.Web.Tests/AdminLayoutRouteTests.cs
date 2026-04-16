@@ -1,6 +1,7 @@
 using Bunit;
 using KennelTrace.Web.Components.Pages;
 using KennelTrace.Web.Features.Facilities.Admin;
+using KennelTrace.Web.Features.Locations.Admin;
 using KennelTrace.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -15,6 +16,7 @@ namespace KennelTrace.Web.Tests;
 public sealed class AdminLayoutRouteTests : BunitContext
 {
     private readonly FakeFacilityAdminService _service = new();
+    private readonly FakeLocationAdminService _locationService = new();
     private readonly TestAuthenticationStateProvider _authenticationStateProvider = new();
 
     public AdminLayoutRouteTests()
@@ -28,6 +30,7 @@ public sealed class AdminLayoutRouteTests : BunitContext
         Services.AddAuthorizationCore();
         Services.AddSingleton<AuthenticationStateProvider>(_authenticationStateProvider);
         Services.AddSingleton<IFacilityAdminService>(_service);
+        Services.AddSingleton<ILocationAdminService>(_locationService);
     }
 
     [Fact]
@@ -73,6 +76,7 @@ public sealed class AdminLayoutRouteTests : BunitContext
         Assert.DoesNotContain("Layout Admin", cut.Markup);
         Assert.DoesNotContain("Create Facility", cut.Markup);
         Assert.Equal(0, _service.ListFacilitiesCallCount);
+        Assert.Equal(0, _locationService.GetFacilityCallCount);
     }
 
     private sealed class TestLayout : LayoutComponentBase
@@ -95,5 +99,19 @@ public sealed class AdminLayoutRouteTests : BunitContext
 
         public Task<FacilitySaveResult> SaveAsync(FacilitySaveRequest request, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
             Task.FromResult(FacilitySaveResult.Forbidden());
+    }
+
+    private sealed class FakeLocationAdminService : ILocationAdminService
+    {
+        public int GetFacilityCallCount { get; private set; }
+
+        public Task<LocationAdminFacilityView?> GetFacilityAsync(int facilityId, CancellationToken cancellationToken = default)
+        {
+            GetFacilityCallCount++;
+            return Task.FromResult<LocationAdminFacilityView?>(null);
+        }
+
+        public Task<LocationSaveResult> SaveAsync(LocationSaveRequest request, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
+            Task.FromResult(LocationSaveResult.Forbidden());
     }
 }

@@ -100,6 +100,25 @@ public sealed class Location
         SetParent(parentLocationId, modifiedUtc);
     }
 
+    public void UpdateDetails(
+        LocationType locationType,
+        LocationCode locationCode,
+        string name,
+        int? parentLocationId,
+        int? displayOrder,
+        bool isActive,
+        string? notes,
+        DateTime modifiedUtc)
+    {
+        LocationType = locationType;
+        LocationCode = locationCode;
+        Name = Guard.RequiredText(name, nameof(name));
+        IsActive = isActive;
+        DisplayOrder = displayOrder;
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        SetParent(parentLocationId, modifiedUtc);
+    }
+
     public void AssignParent(int? parentLocationId, DateTime modifiedUtc)
     {
         SetParent(parentLocationId, modifiedUtc);

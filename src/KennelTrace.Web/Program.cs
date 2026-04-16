@@ -2,6 +2,7 @@ using KennelTrace.Infrastructure.Persistence;
 using KennelTrace.Web.Components;
 using KennelTrace.Web.Development;
 using KennelTrace.Web.Features.Facilities.Admin;
+using KennelTrace.Web.Features.Locations.Admin;
 using KennelTrace.Web.Security;
 using MudBlazor.Services;
 
@@ -14,6 +15,7 @@ builder.Services.AddMudServices();
 builder.Services.AddKennelTraceSecurity(builder.Configuration);
 builder.Services.AddKennelTraceSqlServer(builder.Configuration);
 builder.Services.AddScoped<IFacilityAdminService, FacilityAdminService>();
+builder.Services.AddScoped<ILocationAdminService, LocationAdminService>();
 
 var app = builder.Build();
 

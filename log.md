@@ -76,3 +76,23 @@ Verification result in this shell:
 - `dotnet build KennelTrace.sln` passed.
 - `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed.
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` failed because the repository's SQL Server-backed integration suites could not connect to a local SQL Server instance using the default `KENNELTRACE_TEST_SQLSERVER`/`localhost` configuration on this machine.
+
+## 2026-04-15 12:05:00 -07:00
+
+Implemented milestone 8B by extending the existing admin-only `/admin/layout` route into a simple containment maintenance screen rather than adding a competing editor. The page now keeps the 8A facility management area and adds a second location-management section with a facility selector, a browseable grouped location tree, and a selected-location form for `LocationType`, `LocationCode`, `Name`, `ParentLocationId`, `DisplayOrder`, `IsActive`, and `Notes`. Inactive locations are called out directly in the browser and form, creation stays form-based, and delete remains intentionally deferred in favor of history-friendly deactivation.
+
+Added a dedicated `LocationAdminService` for server-side authorized writes plus explicit containment validation. The write path now enforces same-facility parents, self-parent rejection, cycle detection, room-like-only containment parents for kennels, allowed parent/child combinations, and `LocationCode` uniqueness within a facility. Shared containment helpers now live in `LocationTypeRules`, and the `Location` aggregate has an explicit update method so write behavior is not scattered through Razor handlers. Added SQL-backed tests for the rule-heavy save logic and bUnit coverage for facility switching, location selection, create/edit save flows, and validation message display.
+
+Commands run in this repo for this slice were:
+
+- `git status --short`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `git diff -- src\KennelTrace.Domain\Features\Locations\Location.cs src\KennelTrace.Domain\Features\Locations\LocationTypeRules.cs src\KennelTrace.Web\Program.cs src\KennelTrace.Web\Components\Pages\AdminLayout.razor src\KennelTrace.Web\Features\Locations\Admin\LocationAdminService.cs tests\KennelTrace.Tests\LocationAdminServiceTests.cs tests\KennelTrace.Web.Tests\AdminLayoutPageTests.cs tests\KennelTrace.Web.Tests\AdminLayoutRouteTests.cs`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 35 tests.
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 17 tests.
