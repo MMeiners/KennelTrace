@@ -9,6 +9,7 @@
 @inject IFacilityAdminService FacilityAdminService
 @inject IFacilityMapReadService FacilityMapReadService
 @inject ILocationAdminService LocationAdminService
+@inject ILocationLinkAdminService LocationLinkAdminService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Layout Admin</PageTitle>
@@ -16,7 +17,7 @@
 <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
     <div>
         <h1 data-testid="admin-layout-page">Layout Admin</h1>
-        <p class="text-muted mb-0">Maintain facilities and containment structure here. Link editing remains in a later slice.</p>
+        <p class="text-muted mb-0">Maintain facilities, containment structure, kennel placement, and explicit stored links here.</p>
     </div>
     <button type="button" class="btn btn-outline-primary" data-testid="new-facility-button" @onclick="StartCreate">
         New Facility
@@ -356,6 +357,151 @@
                         </div>
                     </div>
 
+                    @if (SelectedLocationCanManageLinks())
+                    {
+                        <div class="border rounded p-3 mt-4" data-testid="location-links-panel">
+                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                                <div>
+                                    <h3 class="h5 mb-1">Explicit Links</h3>
+                                    <p class="text-muted mb-0">Manage stored adjacency and topology links for the selected location. Grid coordinates remain a display aid only.</p>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button"
+                                            class="btn btn-outline-primary"
+                                            data-testid="add-outgoing-link-button"
+                                            @onclick="@(() => OpenCreateLinkDialog(LinkDialogDirection.Outgoing))">
+                                        Add Outgoing Link
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-outline-secondary"
+                                            data-testid="add-incoming-link-button"
+                                            @onclick="@(() => OpenCreateLinkDialog(LinkDialogDirection.Incoming))">
+                                        Add Incoming Link
+                                    </button>
+                                </div>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(_linkSaveErrorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert" data-testid="link-save-error">@_linkSaveErrorMessage</div>
+                            }
+
+                            <div class="row g-4">
+                                <section class="col-xl-6">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0" data-testid="outgoing-links-table">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">Type</th>
+                                                    <th scope="col">Target</th>
+                                                    <th scope="col">Source Type</th>
+                                                    <th scope="col">Notes</th>
+                                                    <th scope="col"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @if (GetOutgoingLinks().Count == 0)
+                                                {
+                                                    <tr>
+                                                        <td colspan="5" class="text-muted" data-testid="outgoing-links-empty">No active outgoing links are stored for this location.</td>
+                                                    </tr>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var link in GetOutgoingLinks())
+                                                    {
+                                                        <tr data-testid="@($"outgoing-link-row-{link.LocationLinkId}")">
+                                                            <td>@link.LinkType</td>
+                                                            <td>
+                                                                <div class="fw-semibold">@link.ToLocationName</div>
+                                                                <div class="text-muted small">@link.ToLocationCode · @link.ToLocationType</div>
+                                                            </td>
+                                                            <td>@link.SourceType</td>
+                                                            <td>
+                                                                @if (!string.IsNullOrWhiteSpace(link.SourceReference))
+                                                                {
+                                                                    <div class="small">Ref: @link.SourceReference</div>
+                                                                }
+                                                                @if (!string.IsNullOrWhiteSpace(link.Notes))
+                                                                {
+                                                                    <div class="small text-muted">@link.Notes</div>
+                                                                }
+                                                            </td>
+                                                            <td class="text-end">
+                                                                <button type="button"
+                                                                        class="btn btn-sm btn-outline-danger"
+                                                                        data-testid="@($"remove-link-button-{link.LocationLinkId}")"
+                                                                        @onclick="@(() => OpenRemoveLinkDialog(link))">
+                                                                    Remove
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </section>
+
+                                <section class="col-xl-6">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0" data-testid="incoming-links-table">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">Type</th>
+                                                    <th scope="col">Source</th>
+                                                    <th scope="col">Source Type</th>
+                                                    <th scope="col">Notes</th>
+                                                    <th scope="col"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @if (GetIncomingLinks().Count == 0)
+                                                {
+                                                    <tr>
+                                                        <td colspan="5" class="text-muted" data-testid="incoming-links-empty">No active incoming links are stored for this location.</td>
+                                                    </tr>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var link in GetIncomingLinks())
+                                                    {
+                                                        <tr data-testid="@($"incoming-link-row-{link.LocationLinkId}")">
+                                                            <td>@link.LinkType</td>
+                                                            <td>
+                                                                <div class="fw-semibold">@link.FromLocationName</div>
+                                                                <div class="text-muted small">@link.FromLocationCode · @link.FromLocationType</div>
+                                                            </td>
+                                                            <td>@link.SourceType</td>
+                                                            <td>
+                                                                @if (!string.IsNullOrWhiteSpace(link.SourceReference))
+                                                                {
+                                                                    <div class="small">Ref: @link.SourceReference</div>
+                                                                }
+                                                                @if (!string.IsNullOrWhiteSpace(link.Notes))
+                                                                {
+                                                                    <div class="small text-muted">@link.Notes</div>
+                                                                }
+                                                            </td>
+                                                            <td class="text-end">
+                                                                <button type="button"
+                                                                        class="btn btn-sm btn-outline-danger"
+                                                                        data-testid="@($"remove-link-button-{link.LocationLinkId}")"
+                                                                        @onclick="@(() => OpenRemoveLinkDialog(link))">
+                                                                    Remove
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    }
+
                     @if (SelectedLocationCanManagePlacement())
                     {
                         <div class="border rounded p-3 mt-4" data-testid="room-placement-editor">
@@ -533,6 +679,126 @@
     </div>
 </section>
 
+@if (_linkDialog is not null && GetSelectedLocation() is { } selectedLinkLocation)
+{
+    <div class="modal d-block" tabindex="-1" role="dialog" data-testid="link-dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h2 class="h5 mb-1">@(_linkDialog.Direction == LinkDialogDirection.Outgoing ? "Add Outgoing Link" : "Add Incoming Link")</h2>
+                        <p class="text-muted mb-0">@selectedLinkLocation.Name (@selectedLinkLocation.LocationCode)</p>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="link-type-input">Link Type</label>
+                        <select id="link-type-input"
+                                class="form-select"
+                                data-testid="link-type-input"
+                                value="@_linkDialog.LinkType.ToString()"
+                                @onchange="OnLinkTypeChanged">
+                            @foreach (var linkType in Enum.GetValues<LinkType>())
+                            {
+                                <option value="@linkType">@linkType</option>
+                            }
+                        </select>
+                        @RenderFieldError(_linkFieldErrors, nameof(LocationLinkSaveRequest.LinkType))
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="link-counterparty-input">@GetLinkCounterpartyLabel()</label>
+                        <select id="link-counterparty-input"
+                                class="form-select"
+                                data-testid="link-counterparty-input"
+                                value="@(_linkDialog.CounterpartyLocationId?.ToString() ?? string.Empty)"
+                                @onchange="OnLinkCounterpartyChanged">
+                            <option value="">Select a location</option>
+                            @foreach (var option in GetLinkCounterpartyOptions())
+                            {
+                                <option value="@option.LocationId">@option.Name (@option.LocationCode) - @option.LocationType</option>
+                            }
+                        </select>
+                        @RenderFieldError(_linkFieldErrors, GetLinkCounterpartyFieldName())
+                    </div>
+
+                    @if (LinkTypeRules.IsTopology(_linkDialog.LinkType))
+                    {
+                        <div class="form-check mb-3">
+                            <input id="link-topology-override-input"
+                                   class="form-check-input"
+                                   type="checkbox"
+                                   data-testid="link-topology-override-input"
+                                   @bind="_linkDialog.AllowTopologyEndpointOverride" />
+                            <label class="form-check-label" for="link-topology-override-input">
+                                Allow unusual topology endpoints
+                            </label>
+                            <div class="form-text">
+                                Topology links default to non-kennel spaces. This override is explicit and admin-visible.
+                            </div>
+                            @RenderFieldError(_linkFieldErrors, nameof(LocationLinkSaveRequest.AllowTopologyEndpointOverride))
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label" for="link-source-reference-input">Source Reference</label>
+                        <input id="link-source-reference-input"
+                               class="form-control"
+                               data-testid="link-source-reference-input"
+                               @bind="_linkDialog.SourceReference" />
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label" for="link-notes-input">Notes</label>
+                        <textarea id="link-notes-input"
+                                  class="form-control"
+                                  rows="3"
+                                  data-testid="link-notes-input"
+                                  @bind="_linkDialog.Notes"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-testid="link-cancel-button" @onclick="CloseLinkDialog">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" data-testid="link-save-button" @onclick="SaveLinkAsync">
+                        Save Link
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_removeLinkDialog is not null)
+{
+    <div class="modal d-block" tabindex="-1" role="dialog" data-testid="remove-link-dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="h5 mb-0">Remove Link</h2>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">
+                        Remove <strong>@_removeLinkDialog.Link.LinkType</strong> between
+                        <strong>@_removeLinkDialog.Link.FromLocationName</strong> and
+                        <strong>@_removeLinkDialog.Link.ToLocationName</strong>?
+                    </p>
+                    <p class="text-muted mb-0">Remove deactivates the directed row and its reciprocal row. It does not hard-delete link history.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-testid="remove-link-cancel-button" @onclick="CloseRemoveLinkDialog">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" data-testid="confirm-remove-link-button" @onclick="ConfirmRemoveLinkAsync">
+                        Remove Link
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<FacilityAdminListItem> _facilities = [];
     private FacilityFormModel _facilityModel = FacilityFormModel.CreateEmpty();
@@ -548,6 +814,10 @@
     private Dictionary<string, string[]> _locationFieldErrors = [];
     private string? _locationSaveErrorMessage;
     private string? _roomPlacementSaveErrorMessage;
+    private LinkDialogModel? _linkDialog;
+    private RemoveLinkDialogModel? _removeLinkDialog;
+    private Dictionary<string, string[]> _linkFieldErrors = [];
+    private string? _linkSaveErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -684,6 +954,7 @@
             _selectedRoomMap = null;
             _locationModel = LocationFormModel.CreateEmpty();
             _roomPlacementRows = [];
+            ResetLinkState();
             return;
         }
 
@@ -748,6 +1019,7 @@
         _locationView = await LocationAdminService.GetFacilityAsync(facilityId);
         _locationFieldErrors.Clear();
         _locationSaveErrorMessage = null;
+        ResetLinkState();
 
         if (_locationView is null)
         {
@@ -781,6 +1053,7 @@
         _selectedRoomMap = null;
         _locationModel = LocationFormModel.CreateEmpty(_selectedLocationFacilityId);
         _roomPlacementRows = [];
+        ResetLinkState();
     }
 
     private void StartCreateChildLocation()
@@ -794,6 +1067,7 @@
         _locationFieldErrors.Clear();
         _locationSaveErrorMessage = null;
         _locationModel = LocationFormModel.CreateForChild(_selectedLocationFacilityId, selectedLocation.LocationId);
+        ResetLinkState();
     }
 
     private async Task SelectLocationAsync(int locationId)
@@ -808,6 +1082,7 @@
         _locationSaveErrorMessage = null;
         _selectedLocationId = location.LocationId;
         _locationModel = LocationFormModel.FromLocation(location);
+        ResetLinkState();
         await LoadSelectedRoomPlacementAsync();
     }
 
@@ -818,6 +1093,7 @@
             _locationFieldErrors.Clear();
             _locationSaveErrorMessage = null;
             _locationModel = LocationFormModel.FromLocation(location);
+            ResetLinkState();
             return;
         }
 
@@ -909,10 +1185,242 @@
         return selectedLocation is not null && IsRoomLike(selectedLocation.LocationType);
     }
 
+    private bool SelectedLocationCanManageLinks() => GetSelectedLocation() is not null;
+
     private LocationAdminListItem? GetSelectedLocation() =>
         _selectedLocationId.HasValue
             ? _locationView?.Locations.SingleOrDefault(x => x.LocationId == _selectedLocationId.Value)
             : null;
+
+    private IReadOnlyList<LocationAdminLinkListItem> GetOutgoingLinks()
+    {
+        if (_locationView is null || !_selectedLocationId.HasValue)
+        {
+            return [];
+        }
+
+        return _locationView.Links
+            .Where(link => link.FromLocationId == _selectedLocationId.Value)
+            .OrderBy(link => link.LinkType)
+            .ThenBy(link => link.ToLocationName)
+            .ThenBy(link => link.ToLocationCode)
+            .ToList();
+    }
+
+    private IReadOnlyList<LocationAdminLinkListItem> GetIncomingLinks()
+    {
+        if (_locationView is null || !_selectedLocationId.HasValue)
+        {
+            return [];
+        }
+
+        return _locationView.Links
+            .Where(link => link.ToLocationId == _selectedLocationId.Value)
+            .OrderBy(link => link.LinkType)
+            .ThenBy(link => link.FromLocationName)
+            .ThenBy(link => link.FromLocationCode)
+            .ToList();
+    }
+
+    private void OpenCreateLinkDialog(LinkDialogDirection direction)
+    {
+        if (GetSelectedLocation() is null)
+        {
+            return;
+        }
+
+        _removeLinkDialog = null;
+        _linkFieldErrors.Clear();
+        _linkSaveErrorMessage = null;
+        _linkDialog = new LinkDialogModel
+        {
+            Direction = direction
+        };
+    }
+
+    private void CloseLinkDialog()
+    {
+        _linkDialog = null;
+        _linkFieldErrors.Clear();
+    }
+
+    private void OpenRemoveLinkDialog(LocationAdminLinkListItem link)
+    {
+        _linkDialog = null;
+        _linkFieldErrors.Clear();
+        _linkSaveErrorMessage = null;
+        _removeLinkDialog = new RemoveLinkDialogModel(link);
+    }
+
+    private void CloseRemoveLinkDialog()
+    {
+        _removeLinkDialog = null;
+    }
+
+    private void OnLinkTypeChanged(ChangeEventArgs args)
+    {
+        if (_linkDialog is null || !Enum.TryParse<LinkType>(args.Value?.ToString(), out var linkType))
+        {
+            return;
+        }
+
+        _linkDialog.LinkType = linkType;
+        if (LinkTypeRules.IsAdjacency(linkType))
+        {
+            _linkDialog.AllowTopologyEndpointOverride = false;
+        }
+    }
+
+    private void OnLinkCounterpartyChanged(ChangeEventArgs args)
+    {
+        if (_linkDialog is null)
+        {
+            return;
+        }
+
+        _linkDialog.CounterpartyLocationId = int.TryParse(args.Value?.ToString(), out var locationId)
+            ? locationId
+            : null;
+    }
+
+    private string GetLinkCounterpartyLabel() =>
+        _linkDialog?.Direction == LinkDialogDirection.Incoming
+            ? "Source location"
+            : "Target location";
+
+    private string GetLinkCounterpartyFieldName() =>
+        _linkDialog?.Direction == LinkDialogDirection.Incoming
+            ? nameof(LocationLinkSaveRequest.FromLocationId)
+            : nameof(LocationLinkSaveRequest.ToLocationId);
+
+    private IReadOnlyList<LocationAdminListItem> GetLinkCounterpartyOptions()
+    {
+        if (_locationView is null || !_selectedLocationId.HasValue)
+        {
+            return [];
+        }
+
+        return _locationView.Locations
+            .Where(location => location.LocationId != _selectedLocationId.Value && location.IsActive)
+            .OrderBy(location => location.Name)
+            .ThenBy(location => location.LocationCode)
+            .ToList();
+    }
+
+    private async Task SaveLinkAsync()
+    {
+        _linkFieldErrors.Clear();
+        _linkSaveErrorMessage = null;
+
+        var selectedLocation = GetSelectedLocation();
+        if (_selectedLocationFacilityId is null || selectedLocation is null || _linkDialog is null)
+        {
+            _linkSaveErrorMessage = "Select a location before saving a link.";
+            return;
+        }
+
+        if (!_linkDialog.CounterpartyLocationId.HasValue)
+        {
+            _linkFieldErrors[GetLinkCounterpartyFieldName()] = [$"{GetLinkCounterpartyLabel()} is required."];
+            return;
+        }
+
+        var request = BuildLinkSaveRequest(_selectedLocationFacilityId.Value, selectedLocation.LocationId, _linkDialog);
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        try
+        {
+            var result = await LocationLinkAdminService.SaveAsync(request, authenticationState.User);
+            if (result.Status == LocationLinkSaveStatus.Forbidden)
+            {
+                _linkSaveErrorMessage = "Only admins can save link changes.";
+                return;
+            }
+
+            if (result.Status == LocationLinkSaveStatus.ValidationFailed)
+            {
+                _linkFieldErrors = result.ValidationErrors.ToDictionary(pair => pair.Key, pair => pair.Value);
+                return;
+            }
+
+            _linkDialog = null;
+            await LoadLocationFacilityAsync(_selectedLocationFacilityId.Value, selectedLocation.LocationId);
+        }
+        catch (Exception)
+        {
+            _linkSaveErrorMessage = "The link could not be saved. Refresh the facility and try again.";
+        }
+    }
+
+    private async Task ConfirmRemoveLinkAsync()
+    {
+        if (_removeLinkDialog is null)
+        {
+            return;
+        }
+
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        try
+        {
+            var result = await LocationLinkAdminService.RemoveAsync(
+                new LocationLinkRemoveRequest(
+                    _removeLinkDialog.Link.FacilityId,
+                    _removeLinkDialog.Link.FromLocationId,
+                    _removeLinkDialog.Link.ToLocationId,
+                    _removeLinkDialog.Link.LinkType),
+                authenticationState.User);
+
+            if (result.Status == LocationLinkRemoveStatus.Forbidden)
+            {
+                _linkSaveErrorMessage = "Only admins can remove links.";
+                return;
+            }
+
+            if (result.Status == LocationLinkRemoveStatus.NotFound)
+            {
+                _linkSaveErrorMessage = "The selected link is no longer active.";
+                _removeLinkDialog = null;
+                return;
+            }
+
+            var selectedLocationId = _selectedLocationId;
+            _removeLinkDialog = null;
+
+            if (_selectedLocationFacilityId.HasValue && selectedLocationId.HasValue)
+            {
+                await LoadLocationFacilityAsync(_selectedLocationFacilityId.Value, selectedLocationId.Value);
+            }
+        }
+        catch (Exception)
+        {
+            _linkSaveErrorMessage = "The link could not be removed. Refresh the facility and try again.";
+        }
+    }
+
+    private void ResetLinkState()
+    {
+        _linkDialog = null;
+        _removeLinkDialog = null;
+        _linkFieldErrors.Clear();
+        _linkSaveErrorMessage = null;
+    }
+
+    private static LocationLinkSaveRequest BuildLinkSaveRequest(int facilityId, int selectedLocationId, LinkDialogModel dialog)
+    {
+        var counterpartyLocationId = dialog.CounterpartyLocationId ?? 0;
+        var fromLocationId = dialog.Direction == LinkDialogDirection.Outgoing ? selectedLocationId : counterpartyLocationId;
+        var toLocationId = dialog.Direction == LinkDialogDirection.Outgoing ? counterpartyLocationId : selectedLocationId;
+
+        return new LocationLinkSaveRequest(
+            facilityId,
+            fromLocationId,
+            toLocationId,
+            dialog.LinkType,
+            dialog.AllowTopologyEndpointOverride,
+            dialog.SourceReference,
+            dialog.Notes);
+    }
 
     private static bool TryParseDisplayOrder(string? value, out int? displayOrder)
     {
@@ -1325,6 +1833,29 @@
                 StackLevelText = location.StackLevel.ToString(),
                 DisplayOrderText = location.DisplayOrder?.ToString()
             };
+    }
+
+    private sealed class LinkDialogModel
+    {
+        public LinkDialogDirection Direction { get; set; } = LinkDialogDirection.Outgoing;
+
+        public int? CounterpartyLocationId { get; set; }
+
+        public LinkType LinkType { get; set; } = LinkType.AdjacentOther;
+
+        public bool AllowTopologyEndpointOverride { get; set; }
+
+        public string? SourceReference { get; set; }
+
+        public string? Notes { get; set; }
+    }
+
+    private sealed record RemoveLinkDialogModel(LocationAdminLinkListItem Link);
+
+    private enum LinkDialogDirection
+    {
+        Outgoing = 1,
+        Incoming = 2
     }
 
     private sealed record AdminPreviewCell(

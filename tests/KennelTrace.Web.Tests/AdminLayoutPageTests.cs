@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Bunit;
+using KennelTrace.Domain.Common;
 using KennelTrace.Domain.Features.Locations;
 using KennelTrace.Infrastructure.Features.Facilities.FacilityMap;
 using KennelTrace.Web.Components.Pages;
@@ -17,6 +18,7 @@ public sealed class AdminLayoutPageTests : BunitContext
     private readonly FakeFacilityAdminService _facilityService = new();
     private readonly FakeFacilityMapReadService _facilityMapReadService = new();
     private readonly FakeLocationAdminService _locationService = new();
+    private readonly FakeLocationLinkAdminService _locationLinkService = new();
     private readonly TestAuthenticationStateProvider _authenticationStateProvider = new();
 
     public AdminLayoutPageTests()
@@ -27,6 +29,7 @@ public sealed class AdminLayoutPageTests : BunitContext
         Services.AddSingleton<IFacilityAdminService>(_facilityService);
         Services.AddSingleton<IFacilityMapReadService>(_facilityMapReadService);
         Services.AddSingleton<ILocationAdminService>(_locationService);
+        Services.AddSingleton<ILocationLinkAdminService>(_locationLinkService);
 
         _authenticationStateProvider.SetUser("admin-user", KennelTraceRoles.Admin, KennelTraceRoles.ReadOnly);
     }
@@ -224,11 +227,138 @@ public sealed class AdminLayoutPageTests : BunitContext
         Assert.Equal(7, _locationService.SaveRequests[0].DisplayOrder);
     }
 
+    [Fact]
+    public void Selected_Location_Shows_Outgoing_And_Incoming_Link_Tables()
+    {
+        _facilityService.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _locationService.FacilityViews[12] = View(
+            12,
+            "PHX",
+            "Phoenix Shelter",
+            [
+                Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A"),
+                Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1"),
+                Location(202, 12, 101, LocationType.Kennel, "KEN-2", "Kennel 2")
+            ],
+            [
+                Link(501, 12, 201, "KEN-1", "Kennel 1", LocationType.Kennel, 202, "KEN-2", "Kennel 2", LocationType.Kennel, LinkType.AdjacentRight, SourceType.Manual, "diagram", "Window side"),
+                Link(502, 12, 202, "KEN-2", "Kennel 2", LocationType.Kennel, 201, "KEN-1", "Kennel 1", LocationType.Kennel, LinkType.AdjacentLeft, SourceType.Manual, "diagram", "Window side")
+            ]);
+
+        var cut = Render<AdminLayout>();
+
+        cut.Find("[data-testid='location-item-201']").Click();
+
+        Assert.Contains("AdjacentRight", cut.Find("[data-testid='outgoing-links-table']").TextContent);
+        Assert.Contains("Kennel 2", cut.Find("[data-testid='outgoing-links-table']").TextContent);
+        Assert.Contains("AdjacentLeft", cut.Find("[data-testid='incoming-links-table']").TextContent);
+        Assert.Contains("Kennel 2", cut.Find("[data-testid='incoming-links-table']").TextContent);
+    }
+
+    [Fact]
+    public void Add_Link_Dialog_Saves_And_Refreshes_The_Selected_Location()
+    {
+        _facilityService.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _locationService.FacilityViews[12] = View(
+            12,
+            "PHX",
+            "Phoenix Shelter",
+            [
+                Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A"),
+                Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1"),
+                Location(202, 12, 101, LocationType.Kennel, "KEN-2", "Kennel 2")
+            ]);
+        _locationLinkService.OnSave = request =>
+        {
+            _locationService.FacilityViews[12] = View(
+                12,
+                "PHX",
+                "Phoenix Shelter",
+                [
+                    Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A"),
+                    Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1"),
+                    Location(202, 12, 101, LocationType.Kennel, "KEN-2", "Kennel 2")
+                ],
+                [
+                    Link(601, 12, request.FromLocationId, "KEN-1", "Kennel 1", LocationType.Kennel, request.ToLocationId, "KEN-2", "Kennel 2", LocationType.Kennel, request.LinkType, SourceType.Manual, request.SourceReference, request.Notes),
+                    Link(602, 12, request.ToLocationId, "KEN-2", "Kennel 2", LocationType.Kennel, request.FromLocationId, "KEN-1", "Kennel 1", LocationType.Kennel, LinkType.AdjacentLeft, SourceType.Manual, request.SourceReference, request.Notes)
+                ]);
+            return LocationLinkSaveResult.Success();
+        };
+
+        var cut = Render<AdminLayout>();
+        cut.Find("[data-testid='location-item-201']").Click();
+        cut.Find("[data-testid='add-outgoing-link-button']").Click();
+
+        cut.Find("[data-testid='link-type-input']").Change(LinkType.AdjacentRight.ToString());
+        cut.Find("[data-testid='link-counterparty-input']").Change("202");
+        cut.Find("[data-testid='link-source-reference-input']").Change("whiteboard");
+        cut.Find("[data-testid='link-notes-input']").Change("Created during review");
+        cut.Find("[data-testid='link-save-button']").Click();
+
+        Assert.Single(_locationLinkService.SaveRequests);
+        Assert.Equal(201, _locationLinkService.SaveRequests[0].FromLocationId);
+        Assert.Equal(202, _locationLinkService.SaveRequests[0].ToLocationId);
+        Assert.Equal(SourceType.Manual, _locationService.FacilityViews[12].Links[0].SourceType);
+        Assert.Contains("AdjacentRight", cut.Find("[data-testid='outgoing-links-table']").TextContent);
+        Assert.DoesNotContain("link-dialog", cut.Markup);
+    }
+
+    [Fact]
+    public void Remove_Link_Dialog_Uses_Deactivate_Workflow()
+    {
+        _facilityService.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _locationService.FacilityViews[12] = View(
+            12,
+            "PHX",
+            "Phoenix Shelter",
+            [
+                Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A"),
+                Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1"),
+                Location(202, 12, 101, LocationType.Kennel, "KEN-2", "Kennel 2")
+            ],
+            [
+                Link(501, 12, 201, "KEN-1", "Kennel 1", LocationType.Kennel, 202, "KEN-2", "Kennel 2", LocationType.Kennel, LinkType.AdjacentRight, SourceType.Manual, null, null),
+                Link(502, 12, 202, "KEN-2", "Kennel 2", LocationType.Kennel, 201, "KEN-1", "Kennel 1", LocationType.Kennel, LinkType.AdjacentLeft, SourceType.Manual, null, null)
+            ]);
+        _locationLinkService.OnRemove = request =>
+        {
+            _locationService.FacilityViews[12] = View(
+                12,
+                "PHX",
+                "Phoenix Shelter",
+                [
+                    Location(101, 12, null, LocationType.Room, "ROOM-A", "Room A"),
+                    Location(201, 12, 101, LocationType.Kennel, "KEN-1", "Kennel 1"),
+                    Location(202, 12, 101, LocationType.Kennel, "KEN-2", "Kennel 2")
+                ]);
+            return LocationLinkRemoveResult.Success();
+        };
+
+        var cut = Render<AdminLayout>();
+        cut.Find("[data-testid='location-item-201']").Click();
+        cut.Find("[data-testid='remove-link-button-501']").Click();
+
+        Assert.Contains("deactivates the directed row and its reciprocal row", cut.Find("[data-testid='remove-link-dialog']").TextContent);
+
+        cut.Find("[data-testid='confirm-remove-link-button']").Click();
+
+        Assert.Single(_locationLinkService.RemoveRequests);
+        Assert.Equal(201, _locationLinkService.RemoveRequests[0].FromLocationId);
+        Assert.Equal(202, _locationLinkService.RemoveRequests[0].ToLocationId);
+        Assert.Contains("No active outgoing links", cut.Find("[data-testid='outgoing-links-table']").TextContent);
+    }
+
     private static FacilityAdminListItem Facility(int facilityId, string facilityCode, string name) =>
         new(facilityId, facilityCode, name, "America/Phoenix", true, null, DateTime.UtcNow, DateTime.UtcNow);
 
-    private static LocationAdminFacilityView View(int facilityId, string facilityCode, string facilityName, IReadOnlyList<LocationAdminListItem> locations) =>
-        new(facilityId, facilityCode, facilityName, true, locations, BuildTree(locations, null));
+    private static LocationAdminFacilityView View(
+        int facilityId,
+        string facilityCode,
+        string facilityName,
+        IReadOnlyList<LocationAdminListItem> locations,
+        IReadOnlyList<LocationAdminLinkListItem>? links = null) =>
+        new(facilityId, facilityCode, facilityName, true, locations, links ?? [], BuildTree(locations, null));
 
     private static LocationAdminListItem Location(
         int locationId,
@@ -244,6 +374,37 @@ public sealed class AdminLayoutPageTests : BunitContext
         bool isActive = true,
         string? notes = null) =>
         new(locationId, facilityId, parentLocationId, locationType, locationCode, name, gridRow, gridColumn, stackLevel, displayOrder, isActive, notes);
+
+    private static LocationAdminLinkListItem Link(
+        int locationLinkId,
+        int facilityId,
+        int fromLocationId,
+        string fromLocationCode,
+        string fromLocationName,
+        LocationType fromLocationType,
+        int toLocationId,
+        string toLocationCode,
+        string toLocationName,
+        LocationType toLocationType,
+        LinkType linkType,
+        SourceType sourceType,
+        string? sourceReference,
+        string? notes) =>
+        new(
+            locationLinkId,
+            facilityId,
+            fromLocationId,
+            fromLocationCode,
+            fromLocationName,
+            fromLocationType,
+            toLocationId,
+            toLocationCode,
+            toLocationName,
+            toLocationType,
+            linkType,
+            sourceType,
+            sourceReference,
+            notes);
 
     private static IReadOnlyList<LocationAdminTreeItem> BuildTree(IReadOnlyList<LocationAdminListItem> locations, int? parentLocationId) =>
         locations
@@ -330,6 +491,29 @@ public sealed class AdminLayoutPageTests : BunitContext
         {
             SaveRequests.Add(request);
             return Task.FromResult(OnSave?.Invoke(request) ?? LocationSaveResult.Forbidden());
+        }
+    }
+
+    private sealed class FakeLocationLinkAdminService : ILocationLinkAdminService
+    {
+        public List<LocationLinkSaveRequest> SaveRequests { get; } = [];
+
+        public List<LocationLinkRemoveRequest> RemoveRequests { get; } = [];
+
+        public Func<LocationLinkSaveRequest, LocationLinkSaveResult>? OnSave { get; set; }
+
+        public Func<LocationLinkRemoveRequest, LocationLinkRemoveResult>? OnRemove { get; set; }
+
+        public Task<LocationLinkSaveResult> SaveAsync(LocationLinkSaveRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+        {
+            SaveRequests.Add(request);
+            return Task.FromResult(OnSave?.Invoke(request) ?? LocationLinkSaveResult.Forbidden());
+        }
+
+        public Task<LocationLinkRemoveResult> RemoveAsync(LocationLinkRemoveRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+        {
+            RemoveRequests.Add(request);
+            return Task.FromResult(OnRemove?.Invoke(request) ?? LocationLinkRemoveResult.Forbidden());
         }
     }
 

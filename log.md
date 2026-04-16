@@ -114,3 +114,25 @@ Verification result in this shell:
 - `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build` passed with 19 tests.
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` passed with 38 tests.
 - `dotnet test KennelTrace.sln --no-build` passed; the existing Playwright home-page smoke test remained intentionally skipped.
+
+## 2026-04-15 15:05:00 -07:00
+
+Implemented milestone 8D by adding admin management for explicit adjacency and topology links inside the existing authorized `/admin/layout` area. The selected-location panel now shows active outgoing and incoming link tables, and admins can add or remove links through simple dialog flows without changing the existing read-only facility map behavior. Link writes now run through a dedicated `LocationLinkAdminService` with explicit reciprocal-row handling: creating `AdjacentLeft/Right`, `AdjacentAbove/Below`, `AdjacentOther`, `Connected`, `Airflow`, or `TransportPath` adds or reactivates both directed rows with `SourceType = Manual`, while remove deactivates both directed rows consistently instead of hard-deleting them.
+
+Extended the location admin read model so the admin page can list active stored links for the selected facility, added server-side validation for self-links, cross-facility links, duplicate active directed links, adjacency kennel-only endpoints, and default topology non-kennel-space endpoints with an explicit admin-visible override path for unusual topology endpoints. Added SQL-backed integration coverage for reciprocal-row creation, reciprocal deactivation on remove, duplicate rejection, endpoint-family validation, cross-facility rejection, and one end-to-end integration that proves an admin-added link appears through the existing read-only room-map data path. Added bUnit coverage for outgoing/incoming link tables plus add/remove dialog flows. Commands run in this repo for this slice were:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build`
+- `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj --no-build`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build`
+- `dotnet test KennelTrace.sln --no-build`
+- `git status --short`
+- `git diff -- src\KennelTrace.Domain\Features\Locations\LocationLink.cs src\KennelTrace.Domain\Features\Locations\LocationTypeRules.cs src\KennelTrace.Web\Program.cs src\KennelTrace.Web\Features\Locations\Admin\LocationAdminService.cs src\KennelTrace.Web\Features\Locations\Admin\LocationLinkAdminService.cs src\KennelTrace.Web\Components\Pages\AdminLayout.razor tests\KennelTrace.Tests\LocationLinkAdminServiceTests.cs tests\KennelTrace.Web.Tests\AdminLayoutPageTests.cs tests\KennelTrace.Web.Tests\AdminLayoutRouteTests.cs log.md`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed.
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build` passed with 22 tests.
+- `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj --no-build` passed with 1 passing Playwright test and 1 intentionally skipped environment-dependent home-page test.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` passed with 44 tests.
+- `dotnet test KennelTrace.sln --no-build` passed across all three test projects.

@@ -19,6 +19,7 @@ public sealed class AdminLayoutRouteTests : BunitContext
     private readonly FakeFacilityAdminService _service = new();
     private readonly FakeFacilityMapReadService _facilityMapReadService = new();
     private readonly FakeLocationAdminService _locationService = new();
+    private readonly FakeLocationLinkAdminService _locationLinkService = new();
     private readonly TestAuthenticationStateProvider _authenticationStateProvider = new();
 
     public AdminLayoutRouteTests()
@@ -34,6 +35,7 @@ public sealed class AdminLayoutRouteTests : BunitContext
         Services.AddSingleton<IFacilityAdminService>(_service);
         Services.AddSingleton<IFacilityMapReadService>(_facilityMapReadService);
         Services.AddSingleton<ILocationAdminService>(_locationService);
+        Services.AddSingleton<ILocationLinkAdminService>(_locationLinkService);
     }
 
     [Fact]
@@ -128,5 +130,14 @@ public sealed class AdminLayoutRouteTests : BunitContext
 
         public Task<RoomMapResult?> GetRoomMapAsync(int facilityId, int roomLocationId, CancellationToken cancellationToken = default) =>
             Task.FromResult<RoomMapResult?>(null);
+    }
+
+    private sealed class FakeLocationLinkAdminService : ILocationLinkAdminService
+    {
+        public Task<LocationLinkSaveResult> SaveAsync(LocationLinkSaveRequest request, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
+            Task.FromResult(LocationLinkSaveResult.Forbidden());
+
+        public Task<LocationLinkRemoveResult> RemoveAsync(LocationLinkRemoveRequest request, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
+            Task.FromResult(LocationLinkRemoveResult.Forbidden());
     }
 }

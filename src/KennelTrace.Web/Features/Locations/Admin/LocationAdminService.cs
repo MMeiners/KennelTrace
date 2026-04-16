@@ -59,6 +59,30 @@ public sealed class LocationAdminService(
 
         var orderedLocations = OrderLocations(locations);
         var locationsByParent = orderedLocations.ToLookup(x => x.ParentLocationId);
+        var links = await (
+                from link in dbContext.LocationLinks.AsNoTracking()
+                join fromLocation in dbContext.Locations.AsNoTracking()
+                    on new { Id = link.FromLocationId, link.FacilityId } equals new { Id = fromLocation.LocationId, fromLocation.FacilityId }
+                join toLocation in dbContext.Locations.AsNoTracking()
+                    on new { Id = link.ToLocationId, link.FacilityId } equals new { Id = toLocation.LocationId, toLocation.FacilityId }
+                where link.FacilityId == facilityId && link.IsActive
+                orderby link.LinkType, fromLocation.LocationCode, toLocation.LocationCode, link.LocationLinkId
+                select new LocationAdminLinkListItem(
+                    link.LocationLinkId,
+                    link.FacilityId,
+                    link.FromLocationId,
+                    fromLocation.LocationCode.Value,
+                    fromLocation.Name,
+                    fromLocation.LocationType,
+                    link.ToLocationId,
+                    toLocation.LocationCode.Value,
+                    toLocation.Name,
+                    toLocation.LocationType,
+                    link.LinkType,
+                    link.SourceType,
+                    link.SourceReference,
+                    link.Notes))
+            .ToListAsync(cancellationToken);
 
         return new LocationAdminFacilityView(
             facility.FacilityId,
@@ -66,6 +90,7 @@ public sealed class LocationAdminService(
             facility.Name,
             facility.IsActive,
             orderedLocations,
+            links,
             BuildTree(null, locationsByParent));
     }
 
@@ -439,7 +464,24 @@ public sealed record LocationAdminFacilityView(
     string FacilityName,
     bool IsActive,
     IReadOnlyList<LocationAdminListItem> Locations,
+    IReadOnlyList<LocationAdminLinkListItem> Links,
     IReadOnlyList<LocationAdminTreeItem> RootLocations);
+
+public sealed record LocationAdminLinkListItem(
+    int LocationLinkId,
+    int FacilityId,
+    int FromLocationId,
+    string FromLocationCode,
+    string FromLocationName,
+    LocationType FromLocationType,
+    int ToLocationId,
+    string ToLocationCode,
+    string ToLocationName,
+    LocationType ToLocationType,
+    LinkType LinkType,
+    SourceType SourceType,
+    string? SourceReference,
+    string? Notes);
 
 public sealed record LocationAdminListItem(
     int LocationId,

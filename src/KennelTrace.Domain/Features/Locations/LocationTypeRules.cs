@@ -14,6 +14,9 @@ public static class LocationTypeRules
     public static bool CanBeContainmentParent(LocationType locationType) =>
         locationType is LocationType.Room or LocationType.Medical or LocationType.Isolation or LocationType.Intake;
 
+    public static bool IsNonKennelSpace(LocationType locationType) =>
+        locationType != LocationType.Kennel;
+
     public static bool CanContainChild(LocationType parentType, LocationType childType) =>
         parentType switch
         {

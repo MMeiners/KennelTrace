@@ -65,13 +65,18 @@ public sealed class LocationLink
         ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 
-    public void ApplyImport(SourceType sourceType, string? sourceReference, string? notes, DateTime modifiedUtc)
+    public void Activate(SourceType sourceType, string? sourceReference, string? notes, DateTime modifiedUtc)
     {
         IsActive = true;
         SourceType = sourceType;
         SourceReference = string.IsNullOrWhiteSpace(sourceReference) ? null : sourceReference.Trim();
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
+
+    public void ApplyImport(SourceType sourceType, string? sourceReference, string? notes, DateTime modifiedUtc)
+    {
+        Activate(sourceType, sourceReference, notes, modifiedUtc);
     }
 
     public void UpdateNotes(string? notes, DateTime modifiedUtc)
