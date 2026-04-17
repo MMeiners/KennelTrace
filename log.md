@@ -314,3 +314,24 @@ Verification result in this shell:
 - The final `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 64 tests.
 - `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 64 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
 - The final `dotnet build KennelTrace.sln` passed against the finished code state.
+
+## 2026-04-17 11:35:00 -07:00
+
+Implemented the Step 10A tracing-contract slice without adding UI or database-backed trace orchestration. Added explicit trace request/result contracts under `src/KennelTrace.Domain/Features/Tracing` for `ContactTraceRequest`, `ContactTraceResult`, `ImpactedLocationResult`, `ImpactedAnimalResult`, `TraceReasonCode`, and simple exact-vs-scoped location match metadata so later slices can represent scope-driven hits without reshaping the API. Also added `DiseaseTraceProfileSemantics` as a small pure helper for adjacency enablement/depth, topology enablement/depth, and allowed topology link types only when topology traversal is enabled, plus a single `IContactTraceService` seam under `src/KennelTrace.Infrastructure/Features/Tracing/ContactTracing`.
+
+Added focused unit coverage in `tests/KennelTrace.Tests/ContactTraceContractsTests.cs` for explicit request validation, reason-code requirements, scoped-result metadata, and profile interpretation rules. This slice intentionally treats `DefaultLookbackHours` as profile metadata only and does not use it to override an explicit request window.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build`
+- `dotnet test KennelTrace.sln --no-build`
+- `git status --short`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed.
+- The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run failed due to a transient `VBCSCompiler` file lock on `KennelTrace.Domain.dll`.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` passed with 72 tests.
+- `dotnet test KennelTrace.sln --no-build` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 72 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
