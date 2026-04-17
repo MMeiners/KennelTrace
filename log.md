@@ -429,3 +429,25 @@ Verification result in this shell:
 - The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed because the initial source-animal autocomplete control required a MudBlazor popover provider in bUnit; the page was simplified to a plain persisted-animal search field that still uses `IAnimalReadService`.
 - The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run passed with 52 tests.
 - The final `dotnet build KennelTrace.sln` passed against the finished code state.
+
+## 2026-04-17 16:49:32 -07:00
+
+Implemented Step 11B by turning `src/KennelTrace.Web/Components/Pages/ContactTrace.razor` from the Step 11A shell into a working single-page source-animal trace workflow on top of the existing `IContactTraceService`. The page now keeps the persisted disease-profile and scope-option loading from Step 11A, reuses the repo's current move-entry UTC input pattern with string-backed `datetime-local` fields parsed as UTC on submit, validates required fields locally, rejects `end <= start` with a clear message, applies `DefaultLookbackHours` only while the trace window has not been manually edited, and submits an unchanged Step 10 `ContactTraceRequest` with `FacilityId = null` so the optional facility selector remains only a scope-location helper and not a second backend filter. The page now also owns post-submit state for running, service-error, empty-result, and success-summary rendering, with placeholder-level result tabs left intentionally simple for later Step 11 slices.
+
+Updated `tests/KennelTrace.Web.Tests/ContactTracePageTests.cs` from shell-only assertions to focused bUnit coverage for the Step 11B flow: route authorization, initial loading, loaded input state, honest empty input states, scope-facility helper narrowing, required-field validation, `end <= start` rejection, profile-driven defaulting, preservation of manually edited windows, `IContactTraceService` invocation with the expected request payload, running-state rendering, success-summary rendering, empty trace-result rendering, and service-error rendering.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+- `git status --short`
+
+Verification result in this shell:
+
+- The first `dotnet build KennelTrace.sln` failed with a transient `CS2012` file lock on `src\KennelTrace.Domain\obj\Debug\net10.0\KennelTrace.Domain.dll` from `VBCSCompiler`.
+- The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run built successfully but failed two new `ContactTracePageTests` cases because `MudTabs` only rendered the active tab panel content in bUnit and the initial page markup used an analyzer-unfriendly `PanelClass` attribute.
+- The second `dotnet build KennelTrace.sln` passed with 0 warnings and 0 errors.
+- The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 59 tests.
