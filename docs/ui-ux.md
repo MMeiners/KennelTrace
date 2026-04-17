@@ -157,6 +157,11 @@ Inputs:
 - date/time range
 - optional facility or location filter
 
+Location scope behavior for MVP:
+
+- if a location scope is selected, the result tabs should show only the selected persisted location and its containment descendants
+- the source animal itself should not appear in impacted-animal results
+
 Outputs:
 
 - trace summary

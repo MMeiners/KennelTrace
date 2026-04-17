@@ -272,7 +272,7 @@ public sealed class KennelTraceDbContext(DbContextOptions<KennelTraceDbContext> 
         entity.Property(x => x.IncludeSameLocation).HasDefaultValue(true).IsRequired();
         entity.Property(x => x.IncludeSameRoom).HasDefaultValue(true).IsRequired();
         entity.Property(x => x.IncludeAdjacent).HasDefaultValue(true).IsRequired();
-        entity.Property(x => x.AdjacencyDepth).HasDefaultValue(1).IsRequired();
+        entity.Property(x => x.AdjacencyDepth).HasDefaultValue(1).ValueGeneratedNever().IsRequired();
         entity.Property(x => x.IncludeTopologyLinks).HasDefaultValue(false).IsRequired();
         entity.Property(x => x.TopologyDepth).HasDefaultValue(0).IsRequired();
         entity.Property(x => x.IsActive).HasDefaultValue(true).IsRequired();

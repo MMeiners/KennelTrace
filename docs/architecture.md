@@ -192,12 +192,14 @@ Application flow:
        - parent room
        - adjacent kennels
        - linked rooms/spaces via allowed link types
-  5. Find movement overlaps between impacted locations and trace window
-  6. Group results by:
+  5. If a location scope was selected, filter impacted results to that location and its containment descendants
+  6. Find movement overlaps between impacted locations and trace window
+  7. Exclude the seed/source animal from impacted-animal output
+  8. Group results by:
        - impacted locations
        - impacted animals
        - inclusion reason
-  7. Return results with explainability metadata
+  9. Return results with explainability metadata
 ```
 
 ### Important tracing rule

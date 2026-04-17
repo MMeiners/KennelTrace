@@ -379,3 +379,28 @@ Verification result in this shell:
 - The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run timed out before completion in this shell.
 - The second `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 87 tests.
 - `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 87 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
+
+## 2026-04-17 15:05:30 -07:00
+
+Implemented Slice 10D with an EF-backed `ContactTraceService` in `src/KennelTrace.Infrastructure/Features/Tracing/ContactTracing`. The new service resolves active disease profiles plus allowed topology link types from SQL, resolves source stays from either a source animal or an explicit source stay, loads only the persisted locations/containment/links needed for the selected request, and then hands the resulting snapshot into the existing pure `ImpactedLocationGraphExpander` and `ImpactedAnimalProjector`. The orchestration keeps tracing on-demand and server-side, excludes the seed animal from impacted-animal output, and applies optional location scope as a final descendant-or-self filter over impacted results instead of trimming source stays up front.
+
+Added SQL-backed integration coverage in `tests/KennelTrace.Tests/ContactTraceServiceTests.cs` for the required Step 10 scenarios: source animal with multiple stays, explicit source stay, open source stay, same location, same room, adjacency, topology-link filtering, optional scope narrowing, partial graph behavior, and deterministic/reproducible output from persisted movement/link data. While wiring the service, also fixed one persistence-model issue that mattered for real trace profiles: `DiseaseTraceProfile.AdjacencyDepth = 0` now persists correctly instead of being replaced by the SQL default on insert. Updated `docs/acceptance-criteria.md`, `docs/architecture.md`, `docs/data-model.sql.md`, and `docs/ui-ux.md` to make the new scope and seed-animal semantics explicit.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter "FullyQualifiedName~ContactTraceServiceTests"`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter "FullyQualifiedName~ContactTraceServiceTests"`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter "FullyQualifiedName~ContactTraceServiceTests"`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- The first focused `ContactTraceServiceTests` run failed while fixing two implementation issues: the initial source-stay query shape was not SQL-translatable, and persisted `DiseaseTraceProfile.AdjacencyDepth = 0` was falling back to the SQL default value.
+- The second focused run failed on one ordering assertion after the service behavior itself was already correct; the test was updated to assert the documented deterministic location ordering by persisted IDs.
+- The final focused `ContactTraceServiceTests` run passed with 7 tests.
+- `dotnet build KennelTrace.sln` passed.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 94 tests.
+- `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 94 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.

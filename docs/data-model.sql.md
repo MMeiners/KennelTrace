@@ -700,6 +700,10 @@ Use three mechanisms:
 
 For each impacted location, find movement rows whose intervals overlap the relevant exposure window.
 
+If the request includes an optional location scope, apply it as a final filter to the impacted location set using the selected persisted location plus its containment descendants.
+
+When projecting impacted animals, exclude the seed/source animal itself so the result set stays focused on other exposed animals.
+
 ### 4. Return reasons, not just IDs
 
 The trace result should include reason codes such as:

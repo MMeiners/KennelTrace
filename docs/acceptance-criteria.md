@@ -168,6 +168,8 @@ This document defines what “done” means for each MVP feature, with attention
 - A location has partial graph data; trace still returns what can be proven from stored data.
 - The disease profile excludes some link types.
 - Optional location scope narrows the result.
+- Optional location scope narrows impacted results to the selected persisted location and its containment descendants; it does not discard source stays before graph expansion.
+- The seed/source animal is not returned in impacted-animal results, even when its own later stays would otherwise overlap an impacted location.
 
 ### Data integrity expectations
 
