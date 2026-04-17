@@ -16,6 +16,7 @@ builder.Services.AddMudServices();
 builder.Services.AddKennelTraceSecurity(builder.Configuration);
 builder.Services.AddKennelTraceSqlServer(builder.Configuration);
 builder.Services.AddScoped<IAnimalAdminService, AnimalAdminService>();
+builder.Services.AddScoped<IAnimalMovementAdminService, AnimalMovementAdminService>();
 builder.Services.AddScoped<IFacilityAdminService, FacilityAdminService>();
 builder.Services.AddScoped<ILocationAdminService, LocationAdminService>();
 builder.Services.AddScoped<ILocationLinkAdminService, LocationLinkAdminService>();

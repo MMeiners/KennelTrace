@@ -260,3 +260,27 @@ Verification result in this shell:
 - The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed because two new bUnit assertions targeted the form-body test container instead of the card header text.
 - The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 39 tests.
 - `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 54 passing tests, `tests/KennelTrace.Web.Tests` reporting 39 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
+
+## 2026-04-17 10:42:53 -07:00
+
+Implemented the Step 9 movement-write slice without adding UI. The new `AnimalMovementAdminService` under `src/KennelTrace.Web/Features/Animals/Admin` follows the repo's existing admin-service pattern: it enforces `AdminOnly` authorization server-side, accepts an explicit stay-recording request model (`AnimalId`, `LocationId`, `StartUtc`, optional `EndUtc`, optional `MovementReason`, optional `Notes`), uses interval-based `MovementEvent` rows with half-open semantics, and records `RecordedByUserId` from `ClaimTypes.NameIdentifier` when available with a fallback to `Identity.Name`. The write path stays manual-entry focused and uses the existing schema and filtered unique index with no migration changes.
+
+The movement write logic now runs inside a SQL transaction and follows the documented pattern for the same animal: read the animal's existing stays in-transaction, reject overlap using the half-open predicate, close the current open stay at the new stay's `StartUtc` when the request represents a move, insert the new stay, and commit only after re-checking that no overlap exists and at most one open stay remains. Added SQL-backed integration coverage in `tests/KennelTrace.Tests/AnimalMovementAdminServiceTests.cs` for first open stay creation, open-stay handoff on move, same-timestamp handoff, overlapping historical rejection, second-open prevention, closed-stay-only history, cross-facility consecutive moves, `RecordedByUserId` capture, and non-admin rejection.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter "FullyQualifiedName~AnimalMovementAdminServiceTests"`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+- `git status --short`
+
+Verification result in this shell:
+
+- The first `dotnet build KennelTrace.sln` failed because `AnimalMovementAdminService.cs` was missing the `KennelTrace.Domain.Common` import for `SourceType`.
+- The second `dotnet build KennelTrace.sln` passed.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter "FullyQualifiedName~AnimalMovementAdminServiceTests"` passed with 9 tests.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 63 tests.
+- `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 63 passing tests, `tests/KennelTrace.Web.Tests` reporting 39 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
