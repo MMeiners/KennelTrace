@@ -2,6 +2,7 @@ using KennelTrace.Infrastructure.Features.Animals.AnimalRecords;
 using KennelTrace.Infrastructure.Features.Facilities.FacilityMap;
 using KennelTrace.Infrastructure.Features.Imports;
 using KennelTrace.Infrastructure.Features.Tracing.ContactTracing;
+using KennelTrace.Infrastructure.Features.Tracing.TracePage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAnimalReadService>(serviceProvider => serviceProvider.GetRequiredService<AnimalReadService>());
         services.AddScoped<FacilityMapReadService>();
         services.AddScoped<IFacilityMapReadService>(serviceProvider => serviceProvider.GetRequiredService<FacilityMapReadService>());
+        services.AddScoped<TracePageReadService>();
+        services.AddScoped<ITracePageReadService>(serviceProvider => serviceProvider.GetRequiredService<TracePageReadService>());
         services.AddScoped<IContactTraceService, ContactTraceService>();
 
         return services;

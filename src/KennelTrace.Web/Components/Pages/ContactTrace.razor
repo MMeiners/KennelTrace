@@ -1,0 +1,268 @@
+@page "/trace"
+@rendermode InteractiveServer
+@using KennelTrace.Infrastructure.Features.Animals.AnimalRecords
+@using KennelTrace.Infrastructure.Features.Tracing.TracePage
+@attribute [Authorize(Roles = $"{KennelTraceRoles.ReadOnly},{KennelTraceRoles.Admin}")]
+@inject IAnimalReadService AnimalReadService
+@inject ITracePageReadService TracePageReadService
+
+<PageTitle>Contact Trace</PageTitle>
+
+<MudStack Spacing="3" data-testid="trace-page">
+    <div>
+        <MudText Typo="Typo.h4">Contact Trace</MudText>
+        <MudText Typo="Typo.body1" Class="text-muted">Load trace inputs from persisted disease profiles, animals, and optional scope locations.</MudText>
+    </div>
+
+    @if (_isLoading)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-loading-state">
+            Loading trace inputs from persisted data.
+        </MudAlert>
+    }
+    else
+    {
+        <MudCard>
+            <MudCardContent>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" md="6">
+                        <label class="form-label" for="trace-disease-select">Disease profile</label>
+                        <select id="trace-disease-select"
+                                class="form-select"
+                                data-testid="trace-disease-select"
+                                value="@FormatSelectedValue(_selectedDiseaseTraceProfileId)"
+                                @onchange="OnDiseaseProfileChanged"
+                                disabled="@(_diseaseProfiles.Count == 0)">
+                            <option value="">Select a disease profile</option>
+                            @foreach (var option in _diseaseProfiles)
+                            {
+                                <option value="@option.DiseaseTraceProfileId">@GetDiseaseProfileLabel(option)</option>
+                            }
+                        </select>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <label class="form-label" for="trace-source-animal">Source animal</label>
+                        <input id="trace-source-animal"
+                               class="form-control"
+                               data-testid="trace-source-animal"
+                               list="trace-source-animal-options"
+                               placeholder="Search by animal number or name"
+                               value="@(_animalSearchText ?? string.Empty)"
+                               @oninput="OnAnimalSearchChangedAsync" />
+                        <datalist id="trace-source-animal-options">
+                            @foreach (var animal in _animalOptions)
+                            {
+                                <option value="@FormatAnimalOption(animal)"></option>
+                            }
+                        </datalist>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <label class="form-label" for="trace-window-start">Trace window start (UTC)</label>
+                        <input id="trace-window-start"
+                               class="form-control"
+                               data-testid="trace-window-start"
+                               type="datetime-local"
+                               value="@FormatDateTimeLocal(_traceWindowStartLocal)"
+                               @onchange="OnTraceWindowStartChanged" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <label class="form-label" for="trace-window-end">Trace window end (UTC)</label>
+                        <input id="trace-window-end"
+                               class="form-control"
+                               data-testid="trace-window-end"
+                               type="datetime-local"
+                               value="@FormatDateTimeLocal(_traceWindowEndLocal)"
+                               @onchange="OnTraceWindowEndChanged" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="4">
+                        <label class="form-label" for="trace-scope-facility-select">Scope facility</label>
+                        <select id="trace-scope-facility-select"
+                                class="form-select"
+                                data-testid="trace-scope-facility-select"
+                                value="@FormatSelectedValue(_selectedScopeFacilityId)"
+                                @onchange="OnScopeFacilityChanged"
+                                disabled="@(_scopeFacilities.Count == 0)">
+                            <option value="">All persisted scope locations</option>
+                            @foreach (var facility in _scopeFacilities)
+                            {
+                                <option value="@facility.FacilityId">@facility.Label</option>
+                            }
+                        </select>
+                    </MudItem>
+
+                    <MudItem xs="12" md="8">
+                        <label class="form-label" for="trace-scope-location-select">Optional location scope</label>
+                        <select id="trace-scope-location-select"
+                                class="form-select"
+                                data-testid="trace-scope-location-select"
+                                value="@FormatSelectedValue(_selectedScopeLocationId)"
+                                @onchange="OnScopeLocationChanged"
+                                disabled="@(FilteredScopeOptions.Count == 0)">
+                            <option value="">No location scope</option>
+                            @foreach (var option in FilteredScopeOptions)
+                            {
+                                <option value="@option.LocationId">@GetScopeLocationLabel(option)</option>
+                            }
+                        </select>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        @if (_diseaseProfiles.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-testid="trace-no-profiles">
+                No active disease profiles are available yet.
+            </MudAlert>
+        }
+
+        @if (_scopeOptions.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-no-scope-options">
+                No persisted location scope options are available yet.
+            </MudAlert>
+        }
+        else if (_selectedScopeFacilityId.HasValue && FilteredScopeOptions.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-no-scoped-facility-options">
+                No persisted location scope options are available for the selected facility.
+            </MudAlert>
+        }
+
+        <MudCard data-testid="trace-shell-status">
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Trace summary / warnings</MudText>
+                <MudText Typo="Typo.body2" Class="text-muted">
+                    This slice loads trace inputs only. Trace execution and explainable results will be wired in the next slice.
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+
+        <MudCard data-testid="trace-shell-results">
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Results</MudText>
+                <MudText Typo="Typo.body2" Class="text-muted">
+                    Impacted locations, impacted animals, and why-included details will appear here after trace execution is connected.
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+    }
+</MudStack>
+
+@code {
+    private IReadOnlyList<TraceDiseaseProfileOption> _diseaseProfiles = [];
+    private IReadOnlyList<TraceLocationScopeOption> _scopeOptions = [];
+    private IReadOnlyList<ScopeFacilityOption> _scopeFacilities = [];
+    private bool _isLoading = true;
+    private int? _selectedDiseaseTraceProfileId;
+    private int? _selectedScopeFacilityId;
+    private int? _selectedScopeLocationId;
+    private AnimalLookupRow? _selectedAnimal;
+    private string? _animalSearchText;
+    private IReadOnlyList<AnimalLookupRow> _animalOptions = [];
+    private DateTime _traceWindowStartLocal = new(2026, 4, 16, 0, 0, 0, DateTimeKind.Unspecified);
+    private DateTime _traceWindowEndLocal = new(2026, 4, 17, 0, 0, 0, DateTimeKind.Unspecified);
+
+    private IReadOnlyList<TraceLocationScopeOption> FilteredScopeOptions =>
+        _selectedScopeFacilityId is null
+            ? _scopeOptions
+            : _scopeOptions.Where(x => x.FacilityId == _selectedScopeFacilityId.Value).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var diseaseProfilesTask = TracePageReadService.ListActiveDiseaseProfilesAsync();
+        var scopeOptionsTask = TracePageReadService.ListLocationScopeOptionsAsync();
+
+        await Task.WhenAll(diseaseProfilesTask, scopeOptionsTask);
+
+        _diseaseProfiles = diseaseProfilesTask.Result;
+        _scopeOptions = scopeOptionsTask.Result;
+        _scopeFacilities = _scopeOptions
+            .Select(x => new ScopeFacilityOption(x.FacilityId, $"{x.FacilityName} ({x.FacilityCode.Value})"))
+            .DistinctBy(x => x.FacilityId)
+            .OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        _isLoading = false;
+    }
+
+    private async Task OnAnimalSearchChangedAsync(ChangeEventArgs args)
+    {
+        _animalSearchText = args.Value?.ToString();
+
+        if (string.IsNullOrWhiteSpace(_animalSearchText))
+        {
+            _animalOptions = [];
+            _selectedAnimal = null;
+            return;
+        }
+
+        _animalOptions = await AnimalReadService.LookupAnimalsAsync(_animalSearchText);
+        _selectedAnimal = _animalOptions
+            .FirstOrDefault(x => string.Equals(FormatAnimalOption(x), _animalSearchText, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private Task OnDiseaseProfileChanged(ChangeEventArgs args)
+    {
+        _selectedDiseaseTraceProfileId = ParseNullableInt(args.Value);
+        return Task.CompletedTask;
+    }
+
+    private Task OnScopeFacilityChanged(ChangeEventArgs args)
+    {
+        _selectedScopeFacilityId = ParseNullableInt(args.Value);
+        _selectedScopeLocationId = null;
+        return Task.CompletedTask;
+    }
+
+    private Task OnScopeLocationChanged(ChangeEventArgs args)
+    {
+        _selectedScopeLocationId = ParseNullableInt(args.Value);
+        return Task.CompletedTask;
+    }
+
+    private Task OnTraceWindowStartChanged(ChangeEventArgs args)
+    {
+        _traceWindowStartLocal = ParseDateTimeLocal(args.Value, _traceWindowStartLocal);
+        return Task.CompletedTask;
+    }
+
+    private Task OnTraceWindowEndChanged(ChangeEventArgs args)
+    {
+        _traceWindowEndLocal = ParseDateTimeLocal(args.Value, _traceWindowEndLocal);
+        return Task.CompletedTask;
+    }
+
+    private static string GetDiseaseProfileLabel(TraceDiseaseProfileOption option) =>
+        $"{option.DiseaseName} ({option.DiseaseCode.Value})";
+
+    private static string GetScopeLocationLabel(TraceLocationScopeOption option) =>
+        $"{option.LocationName} ({option.LocationCode.Value}) - {option.LocationType}";
+
+    private static string? FormatAnimalOption(AnimalLookupRow? option) =>
+        option is null
+            ? null
+            : string.IsNullOrWhiteSpace(option.Name)
+                ? option.AnimalNumber.Value
+                : $"{option.AnimalNumber.Value} - {option.Name}";
+
+    private static string FormatSelectedValue(int? value) => value?.ToString() ?? string.Empty;
+
+    private static int? ParseNullableInt(object? value) =>
+        int.TryParse(value?.ToString(), out var parsedValue)
+            ? parsedValue
+            : null;
+
+    private static string FormatDateTimeLocal(DateTime value) =>
+        value.ToString("yyyy-MM-ddTHH:mm");
+
+    private static DateTime ParseDateTimeLocal(object? value, DateTime fallbackValue) =>
+        DateTime.TryParse(value?.ToString(), out var parsedValue)
+            ? DateTime.SpecifyKind(parsedValue, DateTimeKind.Unspecified)
+            : fallbackValue;
+
+    private sealed record ScopeFacilityOption(int FacilityId, string Label);
+}

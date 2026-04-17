@@ -404,3 +404,28 @@ Verification result in this shell:
 - `dotnet build KennelTrace.sln` passed.
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 94 tests.
 - `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 94 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
+
+## 2026-04-17 16:36:58 -07:00
+
+Implemented Step 11A for the trace UI foundation without wiring trace execution yet. Added a new authorized `/trace` page in `src/KennelTrace.Web/Components/Pages/ContactTrace.razor`, exposed a top-level `Contact Trace` nav entry, and kept the route available to both `ReadOnly` and `Admin` users. The page follows the repo's existing page-focused read-service pattern by loading only the two requested persisted input seams: active disease profile options plus optional location-scope options. The source animal input reuses the existing `IAnimalReadService` for lookup suggestions, while the optional facility selector is UI-only and only narrows the location-scope list.
+
+Added a new tracing read seam under `src/KennelTrace.Infrastructure/Features/Tracing/TracePage` with `ITracePageReadService`, DTOs, and an EF-backed `TracePageReadService`, then registered it in DI. Added focused SQL-backed integration tests in `tests/KennelTrace.Tests/TracePageReadServiceTests.cs` for active disease profile loading and persisted scope-option loading, plus focused bUnit coverage in `tests/KennelTrace.Web.Tests/ContactTracePageTests.cs` and `tests/KennelTrace.Web.Tests/NavMenuTests.cs` for route authorization, nav visibility, loading state, loaded selector options, facility-driven scope narrowing, and honest empty states.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet build KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- The first `dotnet build KennelTrace.sln` passed.
+- The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run timed out before completion in this shell.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` passed with 96 tests.
+- The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed because the initial source-animal autocomplete control required a MudBlazor popover provider in bUnit; the page was simplified to a plain persisted-animal search field that still uses `IAnimalReadService`.
+- The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run passed with 52 tests.
+- The final `dotnet build KennelTrace.sln` passed against the finished code state.
