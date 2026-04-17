@@ -335,3 +335,24 @@ Verification result in this shell:
 - The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run failed due to a transient `VBCSCompiler` file lock on `KennelTrace.Domain.dll`.
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` passed with 72 tests.
 - `dotnet test KennelTrace.sln --no-build` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 72 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
+
+## 2026-04-17 14:01:32 -07:00
+
+Implemented Slice 10B for pure impacted-location graph expansion in `src/KennelTrace.Domain/Features/Tracing` without adding EF querying or UI behavior. Added a pure `ImpactedLocationGraphExpander` plus request/snapshot/result types for resolved source stays and locations, interpreted profile settings, supplied containment/link graph data, and explicit impacted-location reason metadata. The expansion now covers same location, same room from containment, directed adjacency traversal by depth, and topology traversal by allowed link type and depth, while preserving deterministic ordering, explainable scoped-vs-exact matching metadata, and deduplicated multi-path reasons without inferring anything from grid coordinates.
+
+Added focused unit coverage in `tests/KennelTrace.Tests/ImpactedLocationGraphExpanderTests.cs` for containment-derived same-room behavior, adjacency depth 1 vs 2, authored-direction link traversal, topology filtering and reason-code mapping, partial graph snapshots, irregular-grid non-inference, same-location source handling, and deterministic output when multiple reasons reach the same location.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed.
+- The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run timed out before completion in this shell.
+- The second `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 80 tests.
+- `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 80 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
