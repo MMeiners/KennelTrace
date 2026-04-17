@@ -233,3 +233,30 @@ Verification result in this shell:
 - The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 32 tests.
 - The first `dotnet test KennelTrace.sln` run timed out in this shell before completion.
 - The final `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.PlaywrightTests` reporting 1 passing test and 1 intentionally skipped environment-dependent test, `tests/KennelTrace.Web.Tests` reporting 32 passing tests, and `tests/KennelTrace.Tests` reporting 50 passing tests.
+
+## 2026-04-17 10:16:25 -07:00
+
+Implemented the admin-only animal maintenance slice at `/admin/animals` using the same server-authorized admin-service pattern already established for `/admin/layout`. The new workflow stays intentionally simple and form-based: admins can search/browse animals by number or name through the existing `IAnimalReadService`, select an existing record into an edit form, create a new record, and deactivate an existing record by clearing `IsActive` instead of deleting it. The explicit `AnimalAdminService` now owns all animal writes server-side, enforces admin authorization plus required/unique `AnimalNumber`, keeps the model limited to the documented MVP fields, and uses the existing `Animals` table shape without schema changes or migrations.
+
+Added SQL-backed integration tests in `tests/KennelTrace.Tests/AnimalAdminServiceTests.cs` for create, update, unique `AnimalNumber`, and deactivate-instead-of-delete behavior. Added bUnit coverage in `tests/KennelTrace.Web.Tests/AdminAnimalsPageTests.cs` and `tests/KennelTrace.Web.Tests/AdminAnimalsRouteTests.cs` for page render, select/create/edit flows, validation message display, and admin-only route protection. The admin nav now includes `Admin Animals` for admins only, and `NavMenuTests` was updated to verify the new link visibility.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- The first `dotnet build KennelTrace.sln` failed because `AdminAnimals.razor` used an incompatible `type="date"` bind on a `string` field; the field was changed to explicit `value`/`oninput` handling.
+- The second `dotnet build KennelTrace.sln` passed.
+- The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run timed out before completion in this shell.
+- The second `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 54 tests.
+- The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed because two new bUnit assertions targeted the form-body test container instead of the card header text.
+- The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 39 tests.
+- `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 54 passing tests, `tests/KennelTrace.Web.Tests` reporting 39 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.

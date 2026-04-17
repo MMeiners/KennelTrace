@@ -1,0 +1,379 @@
+@page "/admin/animals"
+@rendermode InteractiveServer
+@using KennelTrace.Infrastructure.Features.Animals.AnimalRecords
+@using KennelTrace.Web.Features.Animals.Admin
+@using KennelTrace.Web.Security
+@attribute [Authorize(Roles = KennelTraceRoles.Admin)]
+@inject IAnimalReadService AnimalReadService
+@inject IAnimalAdminService AnimalAdminService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Animal Admin</PageTitle>
+
+<div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 data-testid="admin-animals-page">Animal Admin</h1>
+        <p class="text-muted mb-0">Create, edit, search, and deactivate animal records. This workflow keeps history by deactivating records instead of deleting them.</p>
+    </div>
+    <button type="button" class="btn btn-outline-primary" data-testid="new-animal-button" @onclick="StartCreate">
+        New Animal
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_saveErrorMessage))
+{
+    <div class="alert alert-danger" role="alert" data-testid="animal-save-error">@_saveErrorMessage</div>
+}
+else if (!string.IsNullOrWhiteSpace(_saveSuccessMessage))
+{
+    <div class="alert alert-success" role="status" data-testid="animal-save-success">@_saveSuccessMessage</div>
+}
+
+<div class="row g-4">
+    <section class="col-lg-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Browse Animals</h2>
+            </div>
+            <div class="card-body">
+                <div class="input-group mb-3">
+                    <input class="form-control"
+                           id="animal-admin-search-input"
+                           placeholder="Animal number or name"
+                           data-testid="animal-search-input"
+                           @bind="_searchText"
+                           @bind:event="oninput" />
+                    <button type="button" class="btn btn-primary" data-testid="animal-search-button" @onclick="SearchAsync">
+                        Search
+                    </button>
+                </div>
+
+                @if (!_hasSearched)
+                {
+                    <div class="alert alert-info mb-0" role="status" data-testid="animal-search-initial-state">
+                        Enter an animal number or name to browse existing records.
+                    </div>
+                }
+                else if (_searchResults.Count == 0)
+                {
+                    <div class="alert alert-info mb-0" role="status" data-testid="animal-search-empty-state">
+                        No animals matched that search.
+                    </div>
+                }
+                else
+                {
+                    <div class="list-group" data-testid="animal-list">
+                        @foreach (var animal in _searchResults)
+                        {
+                            <button type="button"
+                                    class="@GetAnimalListButtonCssClass(animal)"
+                                    data-testid="@($"animal-list-item-{animal.AnimalId}")"
+                                    @onclick="@(() => SelectAnimalAsync(animal.AnimalId))">
+                                <div class="d-flex w-100 justify-content-between gap-2">
+                                    <strong>@animal.AnimalNumber.Value</strong>
+                                    <span class="badge text-bg-@(animal.IsActive ? "success" : "secondary")">
+                                        @(animal.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </div>
+                                <div>@GetDisplayName(animal.Name)</div>
+                                <small class="text-muted">@animal.Species</small>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <section class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h2 class="h5 mb-0">@(_model.AnimalId.HasValue ? "Edit Animal" : "Create Animal")</h2>
+            </div>
+            <div class="card-body" data-testid="animal-form">
+                <div class="mb-3">
+                    <label class="form-label" for="animal-number-input">Animal Number</label>
+                    <input id="animal-number-input"
+                           class="form-control"
+                           data-testid="animal-number-input"
+                           @bind="_model.AnimalNumber"
+                           @bind:event="oninput" />
+                    @RenderFieldError(nameof(AnimalSaveRequest.AnimalNumber))
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="animal-name-input">Name</label>
+                    <input id="animal-name-input"
+                           class="form-control"
+                           data-testid="animal-name-input"
+                           @bind="_model.Name"
+                           @bind:event="oninput" />
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="animal-species-input">Species</label>
+                        <input id="animal-species-input"
+                               class="form-control"
+                               data-testid="animal-species-input"
+                               @bind="_model.Species"
+                               @bind:event="oninput" />
+                        @RenderFieldError(nameof(AnimalSaveRequest.Species))
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="animal-sex-input">Sex</label>
+                        <input id="animal-sex-input"
+                               class="form-control"
+                               data-testid="animal-sex-input"
+                               @bind="_model.Sex"
+                               @bind:event="oninput" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="animal-breed-input">Breed</label>
+                        <input id="animal-breed-input"
+                               class="form-control"
+                               data-testid="animal-breed-input"
+                               @bind="_model.Breed"
+                               @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="animal-date-of-birth-input">Date of Birth</label>
+                    <input id="animal-date-of-birth-input"
+                           type="date"
+                           class="form-control"
+                           data-testid="animal-date-of-birth-input"
+                           value="@_model.DateOfBirthText"
+                           @oninput="OnDateOfBirthChanged" />
+                    @RenderFieldError(nameof(AnimalSaveRequest.DateOfBirth))
+                </div>
+
+                <div class="form-check mb-3">
+                    <input id="animal-active-input"
+                           class="form-check-input"
+                           type="checkbox"
+                           data-testid="animal-active-input"
+                           @bind="_model.IsActive" />
+                    <label class="form-check-label" for="animal-active-input">Active</label>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="animal-notes-input">Notes</label>
+                    <textarea id="animal-notes-input"
+                              class="form-control"
+                              rows="4"
+                              data-testid="animal-notes-input"
+                              @bind="_model.Notes"
+                              @bind:event="oninput"></textarea>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" data-testid="animal-save-button" @onclick="SaveAsync">
+                        Save Animal
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-testid="animal-reset-button" @onclick="ResetForm">
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly Dictionary<string, string[]> _fieldErrors = [];
+    private AnimalFormModel _model = AnimalFormModel.CreateEmpty();
+    private string? _searchText;
+    private bool _hasSearched;
+    private IReadOnlyList<AnimalLookupRow> _searchResults = [];
+    private string? _saveErrorMessage;
+    private string? _saveSuccessMessage;
+
+    private async Task SearchAsync()
+    {
+        ClearFeedback();
+        _hasSearched = true;
+        _searchResults = await AnimalReadService.LookupAnimalsAsync(_searchText);
+    }
+
+    private async Task SelectAnimalAsync(int animalId)
+    {
+        ClearFeedback();
+        var detail = await AnimalReadService.GetAnimalDetailAsync(animalId);
+        if (detail is null)
+        {
+            _saveErrorMessage = "The selected animal could not be loaded.";
+            return;
+        }
+
+        _model = AnimalFormModel.FromDetail(detail);
+    }
+
+    private void StartCreate()
+    {
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        ClearFeedback();
+        _model = AnimalFormModel.CreateEmpty();
+    }
+
+    private async Task SaveAsync()
+    {
+        ClearFeedback();
+
+        if (!TryParseDate(_model.DateOfBirthText, out var dateOfBirth))
+        {
+            _fieldErrors[nameof(AnimalSaveRequest.DateOfBirth)] = ["Date of birth must be a valid date."];
+            return;
+        }
+
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var result = await AnimalAdminService.SaveAsync(
+            new AnimalSaveRequest(
+                _model.AnimalId,
+                _model.AnimalNumber,
+                _model.Name,
+                _model.Species,
+                _model.Sex,
+                _model.Breed,
+                dateOfBirth,
+                _model.IsActive,
+                _model.Notes),
+            authenticationState.User);
+
+        if (result.Status == AnimalSaveStatus.Forbidden)
+        {
+            _saveErrorMessage = "Only admins can save animal changes.";
+            return;
+        }
+
+        if (result.Status == AnimalSaveStatus.ValidationFailed)
+        {
+            foreach (var pair in result.ValidationErrors)
+            {
+                _fieldErrors[pair.Key] = pair.Value.ToArray();
+            }
+
+            return;
+        }
+
+        _model = AnimalFormModel.FromSavedAnimal(result.Animal!);
+        _searchText = result.Animal!.AnimalNumber;
+        _hasSearched = true;
+        _searchResults = await AnimalReadService.LookupAnimalsAsync(_searchText);
+        _saveSuccessMessage = $"{result.Animal.AnimalNumber} saved.";
+    }
+
+    private void ClearFeedback()
+    {
+        _fieldErrors.Clear();
+        _saveErrorMessage = null;
+        _saveSuccessMessage = null;
+    }
+
+    private void OnDateOfBirthChanged(ChangeEventArgs args)
+    {
+        _model.DateOfBirthText = args.Value?.ToString();
+    }
+
+    private static bool TryParseDate(string? value, out DateOnly? date)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            date = null;
+            return true;
+        }
+
+        if (DateOnly.TryParse(value, out var parsed))
+        {
+            date = parsed;
+            return true;
+        }
+
+        date = null;
+        return false;
+    }
+
+    private string GetAnimalListButtonCssClass(AnimalLookupRow animal)
+    {
+        const string baseCss = "list-group-item list-group-item-action text-start";
+        return animal.AnimalId == _model.AnimalId
+            ? $"{baseCss} active"
+            : baseCss;
+    }
+
+    private static string GetDisplayName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? "Unnamed animal" : name;
+
+    private RenderFragment RenderFieldError(string fieldName) => builder =>
+    {
+        if (!_fieldErrors.TryGetValue(fieldName, out var messages))
+        {
+            return;
+        }
+
+        var sequence = 0;
+        foreach (var message in messages)
+        {
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "text-danger small mt-1");
+            builder.AddContent(sequence++, message);
+            builder.CloseElement();
+        }
+    };
+
+    private sealed class AnimalFormModel
+    {
+        public int? AnimalId { get; set; }
+
+        public string AnimalNumber { get; set; } = string.Empty;
+
+        public string? Name { get; set; }
+
+        public string Species { get; set; } = "Dog";
+
+        public string? Sex { get; set; }
+
+        public string? Breed { get; set; }
+
+        public string? DateOfBirthText { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        public string? Notes { get; set; }
+
+        public static AnimalFormModel CreateEmpty() => new();
+
+        public static AnimalFormModel FromDetail(AnimalDetailResult detail) =>
+            new()
+            {
+                AnimalId = detail.AnimalId,
+                AnimalNumber = detail.AnimalNumber.Value,
+                Name = detail.Name,
+                Species = detail.Species,
+                Sex = detail.Sex,
+                Breed = detail.Breed,
+                DateOfBirthText = detail.DateOfBirth?.ToString("yyyy-MM-dd"),
+                IsActive = detail.IsActive,
+                Notes = detail.Notes
+            };
+
+        public static AnimalFormModel FromSavedAnimal(AnimalAdminRecord animal) =>
+            new()
+            {
+                AnimalId = animal.AnimalId,
+                AnimalNumber = animal.AnimalNumber,
+                Name = animal.Name,
+                Species = animal.Species,
+                Sex = animal.Sex,
+                Breed = animal.Breed,
+                DateOfBirthText = animal.DateOfBirth?.ToString("yyyy-MM-dd"),
+                IsActive = animal.IsActive,
+                Notes = animal.Notes
+            };
+    }
+}

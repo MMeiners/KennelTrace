@@ -70,6 +70,28 @@ public sealed class Animal
         ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
     }
 
+    public void UpdateRecord(
+        AnimalCode animalNumber,
+        string? name,
+        string species,
+        string? sex,
+        string? breed,
+        DateOnly? dateOfBirth,
+        bool isActive,
+        string? notes,
+        DateTime modifiedUtc)
+    {
+        AnimalNumber = animalNumber;
+        Name = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        Species = Guard.RequiredText(species, nameof(species));
+        Sex = string.IsNullOrWhiteSpace(sex) ? null : sex.Trim();
+        Breed = string.IsNullOrWhiteSpace(breed) ? null : breed.Trim();
+        DateOfBirth = dateOfBirth;
+        IsActive = isActive;
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        ModifiedUtc = Guard.RequiredUtc(modifiedUtc, nameof(modifiedUtc));
+    }
+
     public void Deactivate(DateTime modifiedUtc)
     {
         IsActive = false;
