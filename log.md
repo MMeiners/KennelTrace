@@ -356,3 +356,26 @@ Verification result in this shell:
 - The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run timed out before completion in this shell.
 - The second `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 80 tests.
 - `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 80 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
+
+## 2026-04-17 14:30:19 -07:00
+
+Implemented Slice 10C for pure overlap matching and exposed-animal projection in `src/KennelTrace.Domain/Features/Tracing` without adding EF-backed orchestration. Added pure request/source/candidate/overlap DTOs plus `ImpactedAnimalProjector`, and expanded `ImpactedAnimalResult` so the projection now returns stable animal identity, overlapping stay details, impacted location, and full reason-chain metadata from expanded impacted locations. The overlap layer applies the explicit trace window, preserves half-open interval semantics including open stays and same-timestamp non-overlap, supports multiple source stays, and keeps exact-vs-scoped match behavior from the expansion slice.
+
+Added focused unit coverage in `tests/KennelTrace.Tests/ImpactedAnimalProjectorTests.cs` for same-location overlap, same-room child-location exposure, open source stays, multi-source windows, same-timestamp handoff, source-stay filtering, and deterministic grouping/order. Updated `tests/KennelTrace.Tests/ContactTraceContractsTests.cs` for the richer impacted-animal contract shape.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- The first `dotnet build KennelTrace.sln` passed with one nullable warning in the new projection-request validator.
+- The second `dotnet build KennelTrace.sln` passed cleanly after fixing that warning.
+- The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run timed out before completion in this shell.
+- The second `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 87 tests.
+- `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 87 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.

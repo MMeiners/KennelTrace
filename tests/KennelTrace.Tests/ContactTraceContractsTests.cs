@@ -84,13 +84,49 @@ public sealed class ContactTraceContractsTests
 
         var animal = new ImpactedAnimalResult(
             animalId: 12,
+            animalNumber: new AnimalCode("A-012"),
+            animalName: "Biscuit",
             impactedLocationId: 100,
-            overlappingStayIds: [2001, 2002],
-            matchKind: ImpactedLocationMatchKind.ScopedLocation,
-            scopeLocationId: 80,
-            traversalDepth: 1,
-            viaLinkType: LinkType.Airflow,
-            reasonCodes: [TraceReasonCode.SameRoom, TraceReasonCode.AirflowLinked]);
+            overlappingStays:
+            [
+                new ImpactedAnimalStayOverlap(
+                    sourceStayId: 5001,
+                    sourceLocationId: 80,
+                    sourceStartUtc: new DateTime(2026, 4, 10, 8, 0, 0, DateTimeKind.Utc),
+                    sourceEndUtc: new DateTime(2026, 4, 10, 12, 0, 0, DateTimeKind.Utc),
+                    overlappingStayId: 2001,
+                    stayLocationId: 100,
+                    stayStartUtc: new DateTime(2026, 4, 10, 9, 0, 0, DateTimeKind.Utc),
+                    stayEndUtc: new DateTime(2026, 4, 10, 10, 0, 0, DateTimeKind.Utc),
+                    overlapStartUtc: new DateTime(2026, 4, 10, 9, 0, 0, DateTimeKind.Utc),
+                    overlapEndUtc: new DateTime(2026, 4, 10, 10, 0, 0, DateTimeKind.Utc)),
+                new ImpactedAnimalStayOverlap(
+                    sourceStayId: 5001,
+                    sourceLocationId: 80,
+                    sourceStartUtc: new DateTime(2026, 4, 10, 8, 0, 0, DateTimeKind.Utc),
+                    sourceEndUtc: new DateTime(2026, 4, 10, 12, 0, 0, DateTimeKind.Utc),
+                    overlappingStayId: 2002,
+                    stayLocationId: 100,
+                    stayStartUtc: new DateTime(2026, 4, 10, 10, 30, 0, DateTimeKind.Utc),
+                    stayEndUtc: new DateTime(2026, 4, 10, 11, 0, 0, DateTimeKind.Utc),
+                    overlapStartUtc: new DateTime(2026, 4, 10, 10, 30, 0, DateTimeKind.Utc),
+                    overlapEndUtc: new DateTime(2026, 4, 10, 11, 0, 0, DateTimeKind.Utc))
+            ],
+            reasons:
+            [
+                new ImpactedLocationReason(
+                    TraceReasonCode.SameRoom,
+                    sourceLocationId: 80,
+                    sourceStayId: 5001,
+                    matchKind: ImpactedLocationMatchKind.ScopedLocation,
+                    scopeLocationId: 80),
+                new ImpactedLocationReason(
+                    TraceReasonCode.AirflowLinked,
+                    sourceLocationId: 80,
+                    sourceStayId: 5001,
+                    traversalDepth: 1,
+                    viaLinkType: LinkType.Airflow)
+            ]);
 
         var missingReasons = Assert.Throws<DomainValidationException>(() =>
             new ImpactedLocationResult(locationId: 100, reasonCodes: []));
@@ -98,6 +134,9 @@ public sealed class ContactTraceContractsTests
         Assert.Equal(ImpactedLocationMatchKind.ScopedLocation, location.MatchKind);
         Assert.Equal(80, location.ScopeLocationId);
         Assert.Equal(2, animal.OverlappingStayIds.Count);
+        Assert.Equal("A-012", animal.AnimalSortNumber);
+        Assert.Equal("Biscuit", animal.AnimalSortName);
+        Assert.Equal([TraceReasonCode.SameRoom, TraceReasonCode.AirflowLinked], animal.ReasonCodes);
         Assert.Equal("Impacted results must include at least one trace reason.", missingReasons.Message);
     }
 
@@ -117,9 +156,30 @@ public sealed class ContactTraceContractsTests
             [
                 new ImpactedAnimalResult(
                     animalId: 22,
+                    animalNumber: new AnimalCode("A-022"),
+                    animalName: "Nova",
                     impactedLocationId: 11,
-                    overlappingStayIds: [401],
-                    reasonCodes: [TraceReasonCode.SameLocation])
+                    overlappingStays:
+                    [
+                        new ImpactedAnimalStayOverlap(
+                            sourceStayId: 300,
+                            sourceLocationId: 11,
+                            sourceStartUtc: new DateTime(2026, 4, 10, 8, 0, 0, DateTimeKind.Utc),
+                            sourceEndUtc: new DateTime(2026, 4, 10, 12, 0, 0, DateTimeKind.Utc),
+                            overlappingStayId: 401,
+                            stayLocationId: 11,
+                            stayStartUtc: new DateTime(2026, 4, 10, 9, 0, 0, DateTimeKind.Utc),
+                            stayEndUtc: new DateTime(2026, 4, 10, 10, 0, 0, DateTimeKind.Utc),
+                            overlapStartUtc: new DateTime(2026, 4, 10, 9, 0, 0, DateTimeKind.Utc),
+                            overlapEndUtc: new DateTime(2026, 4, 10, 10, 0, 0, DateTimeKind.Utc))
+                    ],
+                    reasons:
+                    [
+                        new ImpactedLocationReason(
+                            TraceReasonCode.SameLocation,
+                            sourceLocationId: 11,
+                            sourceStayId: 300)
+                    ])
             ]);
 
         Assert.Equal([300L, 301L], result.SourceStayIds);

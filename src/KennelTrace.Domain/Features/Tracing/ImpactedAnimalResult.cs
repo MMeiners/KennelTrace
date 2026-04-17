@@ -1,5 +1,4 @@
 using KennelTrace.Domain.Common;
-using KennelTrace.Domain.Features.Locations;
 
 namespace KennelTrace.Domain.Features.Tracing;
 
@@ -7,65 +6,94 @@ public sealed class ImpactedAnimalResult
 {
     public ImpactedAnimalResult(
         int animalId,
+        AnimalCode animalNumber,
+        string? animalName,
         int impactedLocationId,
-        IEnumerable<long> overlappingStayIds,
-        IEnumerable<TraceReasonCode> reasonCodes,
-        ImpactedLocationMatchKind matchKind = ImpactedLocationMatchKind.ExactLocation,
-        int? scopeLocationId = null,
-        int traversalDepth = 0,
-        LinkType? viaLinkType = null)
+        IEnumerable<ImpactedAnimalStayOverlap> overlappingStays,
+        IEnumerable<ImpactedLocationReason> reasons)
     {
         AnimalId = Guard.Positive(animalId, nameof(animalId));
+        AnimalNumber = new AnimalCode(Guard.RequiredText(animalNumber.Value, nameof(animalNumber)));
+        AnimalName = string.IsNullOrWhiteSpace(animalName) ? null : animalName.Trim();
         ImpactedLocationId = Guard.Positive(impactedLocationId, nameof(impactedLocationId));
-        MatchKind = matchKind;
-        ScopeLocationId = ValidateScopeLocationId(scopeLocationId, matchKind, impactedLocationId);
-        TraversalDepth = Guard.NonNegative(traversalDepth, nameof(traversalDepth));
-        ViaLinkType = viaLinkType;
-        OverlappingStayIds = NormalizePositiveIds(overlappingStayIds, nameof(overlappingStayIds));
-        ReasonCodes = NormalizeReasonCodes(reasonCodes);
+
+        OverlappingStays = NormalizeOverlappingStays(overlappingStays);
+        OverlappingStayIds = OverlappingStays
+            .Select(x => x.OverlappingStayId)
+            .Distinct()
+            .ToArray();
+
+        Reasons = NormalizeReasons(reasons);
+        ReasonCodes = Reasons
+            .Select(x => x.ReasonCode)
+            .Distinct()
+            .ToArray();
     }
 
     public int AnimalId { get; }
 
+    public AnimalCode AnimalNumber { get; }
+
+    public string? AnimalName { get; }
+
+    public string AnimalSortNumber => AnimalNumber.Value;
+
+    public string AnimalSortName => AnimalName ?? string.Empty;
+
     public int ImpactedLocationId { get; }
 
-    public ImpactedLocationMatchKind MatchKind { get; }
-
-    public int? ScopeLocationId { get; }
-
-    public int TraversalDepth { get; }
-
-    public LinkType? ViaLinkType { get; }
+    public IReadOnlyList<ImpactedAnimalStayOverlap> OverlappingStays { get; }
 
     public IReadOnlyList<long> OverlappingStayIds { get; }
 
+    public IReadOnlyList<ImpactedLocationReason> Reasons { get; }
+
     public IReadOnlyList<TraceReasonCode> ReasonCodes { get; }
 
-    private static int? ValidateScopeLocationId(int? scopeLocationId, ImpactedLocationMatchKind matchKind, int impactedLocationId)
+    private static IReadOnlyList<ImpactedAnimalStayOverlap> NormalizeOverlappingStays(IEnumerable<ImpactedAnimalStayOverlap> overlappingStays)
     {
-        if (matchKind == ImpactedLocationMatchKind.ExactLocation)
-        {
-            Guard.Against(scopeLocationId is not null, "Exact location matches cannot include a scopeLocationId.");
-            return null;
-        }
+        var normalized = overlappingStays?.ToArray() ?? throw new DomainValidationException("overlappingStays is required.");
+        Guard.Against(normalized.Length == 0, "overlappingStays must contain at least one value.");
 
-        var validatedScopeLocationId = Guard.Positive(scopeLocationId ?? 0, nameof(scopeLocationId));
-        Guard.Against(validatedScopeLocationId == impactedLocationId, "Scoped location matches must identify a distinct scopeLocationId.");
-        return validatedScopeLocationId;
+        return normalized
+            .GroupBy(x => new
+            {
+                x.OverlappingStayId,
+                x.SourceStayId
+            })
+            .Select(x => x.First())
+            .OrderBy(x => x.OverlapStartUtc)
+            .ThenBy(x => x.OverlapEndUtc)
+            .ThenBy(x => x.StayStartUtc)
+            .ThenBy(x => x.OverlappingStayId)
+            .ThenBy(x => x.SourceStayId)
+            .ToArray();
     }
 
-    private static IReadOnlyList<long> NormalizePositiveIds(IEnumerable<long> values, string paramName)
+    private static IReadOnlyList<ImpactedLocationReason> NormalizeReasons(IEnumerable<ImpactedLocationReason> reasons)
     {
-        var normalized = values?.Distinct().ToArray() ?? throw new DomainValidationException($"{paramName} is required.");
-        Guard.Against(normalized.Length == 0, $"{paramName} must contain at least one value.");
-        Guard.Against(normalized.Any(x => x <= 0), $"{paramName} must contain only positive values.");
-        return normalized;
-    }
-
-    private static IReadOnlyList<TraceReasonCode> NormalizeReasonCodes(IEnumerable<TraceReasonCode> reasonCodes)
-    {
-        var normalized = reasonCodes?.Distinct().ToArray() ?? throw new DomainValidationException("reasonCodes is required.");
+        var normalized = reasons?.ToArray() ?? throw new DomainValidationException("reasons is required.");
         Guard.Against(normalized.Length == 0, "Impacted results must include at least one trace reason.");
-        return normalized;
+
+        return normalized
+            .GroupBy(x => new
+            {
+                x.ReasonCode,
+                x.SourceLocationId,
+                x.SourceStayId,
+                x.MatchKind,
+                x.ScopeLocationId,
+                x.ViaLinkType,
+                x.TraversalDepth
+            })
+            .Select(x => x.First())
+            .OrderBy(x => x.ReasonCode)
+            .ThenBy(x => x.MatchKind)
+            .ThenBy(x => x.ScopeLocationId)
+            .ThenBy(x => x.TraversalDepth)
+            .ThenBy(x => x.ViaLinkType)
+            .ThenBy(x => x.SourceLocationId)
+            .ThenBy(x => x.SourceStayId)
+            .ToArray();
     }
 }
