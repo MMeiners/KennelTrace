@@ -50,6 +50,7 @@ public sealed class NavMenuTests : BunitContext
 
         Assert.Contains(string.Empty, links);
         Assert.Contains("facility-map", links);
+        Assert.Contains("animals", links);
         Assert.Contains("admin/layout", links);
         Assert.Contains("counter", links);
         Assert.Contains("weather", links);
@@ -78,5 +79,6 @@ public sealed class NavMenuTests : BunitContext
 
         Assert.DoesNotContain("admin/layout", links);
         Assert.Contains("facility-map", links);
+        Assert.Contains("animals", links);
     }
 }

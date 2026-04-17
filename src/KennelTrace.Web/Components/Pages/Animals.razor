@@ -1,0 +1,99 @@
+@page "/animals"
+@rendermode InteractiveServer
+@using KennelTrace.Infrastructure.Features.Animals.AnimalRecords
+@attribute [Authorize(Roles = $"{KennelTraceRoles.ReadOnly},{KennelTraceRoles.Admin}")]
+@inject IAnimalReadService AnimalReadService
+
+<PageTitle>Animals</PageTitle>
+
+<MudStack Spacing="3">
+    <div>
+        <MudText Typo="Typo.h4">Animals</MudText>
+        <MudText Typo="Typo.body1" Class="text-muted">Look up animals by number or name and open their read-only placement history.</MudText>
+    </div>
+
+    <MudCard>
+        <MudCardContent>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="8">
+                    <MudTextField T="string"
+                                  Label="Search animals"
+                                  Placeholder="Animal number or name"
+                                  Variant="Variant.Outlined"
+                                  Immediate="true"
+                                  FullWidth="true"
+                                  InputId="animal-search-input"
+                                  @bind-Value="_searchText" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               OnClick="SearchAsync">
+                        Search
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    @if (!_hasSearched)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="animals-initial-state">
+            Enter an animal number or name to search.
+        </MudAlert>
+    }
+    else if (_results.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="animals-empty-state">
+            No animals matched that search.
+        </MudAlert>
+    }
+    else
+    {
+        <MudTable Items="_results" Hover="true" Dense="true" data-testid="animals-results-table">
+            <HeaderContent>
+                <MudTh>Animal Number</MudTh>
+                <MudTh>Name</MudTh>
+                <MudTh>Species</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Animal Number">@context.AnimalNumber.Value</MudTd>
+                <MudTd DataLabel="Name">@GetDisplayName(context.Name)</MudTd>
+                <MudTd DataLabel="Species">@context.Species</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string"
+                             Color="@(context.IsActive ? Color.Success : Color.Default)"
+                             Variant="Variant.Outlined"
+                             Size="Size.Small">
+                        @(context.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Open">
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               Href="@($"/animals/{context.AnimalId}")">
+                        Open
+                    </MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudStack>
+
+@code {
+    private string? _searchText;
+    private bool _hasSearched;
+    private IReadOnlyList<AnimalLookupRow> _results = [];
+
+    private async Task SearchAsync()
+    {
+        _hasSearched = true;
+        _results = await AnimalReadService.LookupAnimalsAsync(_searchText);
+    }
+
+    private static string GetDisplayName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? "Unnamed animal" : name;
+}

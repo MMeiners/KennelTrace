@@ -1,0 +1,180 @@
+@page "/animals/{AnimalId:int}"
+@rendermode InteractiveServer
+@using KennelTrace.Infrastructure.Features.Animals.AnimalRecords
+@attribute [Authorize(Roles = $"{KennelTraceRoles.ReadOnly},{KennelTraceRoles.Admin}")]
+@inject IAnimalReadService AnimalReadService
+
+<PageTitle>Animal Detail</PageTitle>
+
+<MudStack Spacing="3">
+    @if (_animal is null)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-testid="animal-detail-not-found">
+            That animal record could not be found.
+        </MudAlert>
+    }
+    else
+    {
+        <MudCard data-testid="animal-summary-card">
+            <MudCardContent>
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start" Class="mb-3">
+                    <div>
+                        <MudText Typo="Typo.h4" data-testid="animal-detail-number">@_animal.AnimalNumber.Value</MudText>
+                        <MudText Typo="Typo.body1">@GetDisplayName(_animal.Name)</MudText>
+                    </div>
+                    <MudChip T="string"
+                             Color="@(_animal.IsActive ? Color.Success : Color.Default)"
+                             Variant="Variant.Outlined"
+                             data-testid="animal-detail-status">
+                        @(_animal.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudStack>
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.caption">Species</MudText>
+                        <MudText Typo="Typo.body1">@_animal.Species</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.caption">Sex</MudText>
+                        <MudText Typo="Typo.body1">@GetValueOrFallback(_animal.Sex)</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.caption">Breed</MudText>
+                        <MudText Typo="Typo.body1">@GetValueOrFallback(_animal.Breed)</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText Typo="Typo.caption">Date of birth</MudText>
+                        <MudText Typo="Typo.body1">@FormatDate(_animal.DateOfBirth)</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        @if (_animal.CurrentPlacement is null)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="animal-no-current-placement">
+                No current placement is recorded for this animal.
+            </MudAlert>
+        }
+        else
+        {
+            <MudCard data-testid="animal-current-placement-card">
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                        <MudText Typo="Typo.h6">Current placement</MudText>
+                        <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined" Size="Size.Small" data-testid="animal-current-chip">
+                            Current
+                        </MudChip>
+                    </MudStack>
+
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption">Current location</MudText>
+                            <MudText Typo="Typo.body1" data-testid="animal-current-location">@_animal.CurrentPlacement.LocationName (@_animal.CurrentPlacement.LocationCode.Value)</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption">Current facility</MudText>
+                            <MudText Typo="Typo.body1" data-testid="animal-current-facility">@_animal.CurrentPlacement.FacilityName (@_animal.CurrentPlacement.FacilityCode.Value)</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption">Current room</MudText>
+                            <MudText Typo="Typo.body1">@GetRoomSummary(_animal.CurrentPlacement)</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption">Start (UTC)</MudText>
+                            <MudText Typo="Typo.body1">@FormatDateTime(_animal.CurrentPlacement.StartUtc)</MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+        }
+
+        <MudCard>
+            <MudCardContent>
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                    <MudText Typo="Typo.h6">Movement history</MudText>
+                    <MudText Typo="Typo.body2" Class="text-muted">Reverse chronological order</MudText>
+                </MudStack>
+
+                @if (_animal.MovementHistory.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="animal-history-empty">
+                        No movement history is recorded for this animal yet.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudTable Items="_animal.MovementHistory" Hover="true" Dense="true" data-testid="animal-history-table">
+                        <HeaderContent>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Start (UTC)</MudTh>
+                            <MudTh>End (UTC)</MudTh>
+                            <MudTh>Facility</MudTh>
+                            <MudTh>Location</MudTh>
+                            <MudTh>Room</MudTh>
+                            <MudTh>Reason</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Status">
+                                @if (context.EndUtc is null)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined" Size="Size.Small" data-testid="@($"movement-current-{context.MovementEventId}")">
+                                        Current
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.body2">Closed</MudText>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Start (UTC)">@FormatDateTime(context.StartUtc)</MudTd>
+                            <MudTd DataLabel="End (UTC)">@GetEndDisplay(context.EndUtc)</MudTd>
+                            <MudTd DataLabel="Facility">@context.FacilityName (@context.FacilityCode.Value)</MudTd>
+                            <MudTd DataLabel="Location">@context.LocationName (@context.LocationCode.Value)</MudTd>
+                            <MudTd DataLabel="Room">@GetRoomSummary(context)</MudTd>
+                            <MudTd DataLabel="Reason">@GetValueOrFallback(context.MovementReason)</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudCardContent>
+        </MudCard>
+    }
+</MudStack>
+
+@code {
+    [Parameter]
+    public int AnimalId { get; set; }
+
+    private AnimalDetailResult? _animal;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _animal = await AnimalReadService.GetAnimalDetailAsync(AnimalId);
+    }
+
+    private static string GetDisplayName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? "Unnamed animal" : name;
+
+    private static string GetValueOrFallback(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Not recorded" : value;
+
+    private static string FormatDate(DateOnly? value) =>
+        value?.ToString("yyyy-MM-dd") ?? "Not recorded";
+
+    private static string FormatDateTime(DateTime value) =>
+        value.ToString("yyyy-MM-dd HH:mm 'UTC'");
+
+    private static string GetEndDisplay(DateTime? value) =>
+        value is null ? "Open stay" : FormatDateTime(value.Value);
+
+    private static string GetRoomSummary(AnimalCurrentPlacementSummary placement) =>
+        placement.RoomLocationId.HasValue && placement.RoomLocationCode is not null && !string.IsNullOrWhiteSpace(placement.RoomName)
+            ? $"{placement.RoomName} ({placement.RoomLocationCode.Value})"
+            : "Not recorded";
+
+    private static string GetRoomSummary(AnimalMovementHistoryRow historyRow) =>
+        historyRow.RoomLocationId.HasValue && historyRow.RoomLocationCode is not null && !string.IsNullOrWhiteSpace(historyRow.RoomName)
+            ? $"{historyRow.RoomName} ({historyRow.RoomLocationCode.Value})"
+            : "Not recorded";
+}

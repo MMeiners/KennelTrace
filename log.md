@@ -207,3 +207,29 @@ Verification result in this shell:
 - `tests/KennelTrace.PlaywrightTests` passed with 1 active test passing and 1 intentionally skipped environment-dependent test.
 - `tests/KennelTrace.Web.Tests` passed with 23 tests.
 - `dotnet test KennelTrace.sln` passed across all three test projects.
+
+## 2026-04-17 09:51:39 -07:00
+
+Implemented the Step 9 read-only animal UI slice in `KennelTrace.Web` using the existing `IAnimalReadService` seam instead of duplicating query logic in Razor pages. Added an authorized `/animals` lookup page with a simple search box, honest initial and no-results states, a table-first result list, and navigation into read-only detail pages. Added an authorized `/animals/{animalId:int}` detail page with a minimal summary card, clear current placement/facility/location display, reverse-chronological movement history, and explicit `Current` labeling for open stays. The nav menu now includes an `Animals` entry for the same read-only/admin audience as the rest of the operational lookup UI.
+
+Added focused bUnit coverage in `tests/KennelTrace.Web.Tests/AnimalPagesTests.cs` for the requested scenarios: `/animals` initial render, result rendering, empty-result state, detail render, current placement display, open-stay/current labeling, movement history table rendering, and route authorization behavior. The tests reuse the repo’s existing fake injected-service pattern and add a small test-only `IKeyInterceptorService` stub so MudBlazor components render cleanly under bUnit without changing runtime architecture.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+- `dotnet test KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- The first `dotnet build KennelTrace.sln` failed while fixing new bUnit API usage and a MudBlazor analyzer warning in the new animals page.
+- The second `dotnet build KennelTrace.sln` passed.
+- The first two `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` runs failed while configuring MudBlazor JS interop and a test-local key interceptor stub for the new bUnit coverage.
+- The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 32 tests.
+- The first `dotnet test KennelTrace.sln` run timed out in this shell before completion.
+- The final `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.PlaywrightTests` reporting 1 passing test and 1 intentionally skipped environment-dependent test, `tests/KennelTrace.Web.Tests` reporting 32 passing tests, and `tests/KennelTrace.Tests` reporting 50 passing tests.
