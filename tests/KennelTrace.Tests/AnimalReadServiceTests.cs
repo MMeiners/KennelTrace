@@ -76,6 +76,31 @@ public sealed class AnimalReadServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Move_Location_Options_Include_All_Facilities_And_Keep_Inactive_Locations_Visible()
+    {
+        await using var context = CreateContext();
+        var now = Utc(2026, 4, 17, 9);
+        var phoenix = await AddFacilityAsync(context, "PHX", "Phoenix Shelter", now);
+        var tucson = await AddFacilityAsync(context, "TUC", "Tucson Shelter", now);
+        var phoenixRoom = await AddLocationAsync(context, phoenix.FacilityId, "ROOM-A", "Room A", LocationType.Room, now);
+        var activeKennel = await AddLocationAsync(context, phoenix.FacilityId, "KEN-1", "Kennel 1", LocationType.Kennel, now, phoenixRoom.LocationId, gridRow: 0, gridColumn: 0);
+        var inactiveIsolation = await AddLocationAsync(context, tucson.FacilityId, "ISO-1", "Isolation 1", LocationType.Isolation, now);
+        inactiveIsolation.Deactivate(now.AddHours(1));
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+
+        var locations = await service.ListMoveLocationsAsync();
+
+        Assert.Equal([activeKennel.LocationId, phoenixRoom.LocationId, inactiveIsolation.LocationId], locations.Select(x => x.LocationId).ToArray());
+        Assert.Equal("PHX", locations[0].FacilityCode.Value);
+        Assert.True(locations[0].IsActive);
+        Assert.Equal(LocationType.Kennel, locations[0].LocationType);
+        Assert.Equal("TUC", locations[^1].FacilityCode.Value);
+        Assert.False(locations[^1].IsActive);
+    }
+
+    [Fact]
     public async Task Detail_Returns_Animal_Data_When_There_Is_No_Current_Placement()
     {
         await using var context = CreateContext();

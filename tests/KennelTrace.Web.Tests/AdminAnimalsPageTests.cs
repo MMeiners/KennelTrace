@@ -194,6 +194,9 @@ public sealed class AdminAnimalsPageTests : BunitContext
             return Task.FromResult(LookupResults.GetValueOrDefault(searchText ?? string.Empty, Array.Empty<AnimalLookupRow>()));
         }
 
+        public Task<IReadOnlyList<AnimalMoveLocationOption>> ListMoveLocationsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AnimalMoveLocationOption>>([]);
+
         public Task<AnimalDetailResult?> GetAnimalDetailAsync(int animalId, CancellationToken cancellationToken = default)
         {
             DetailCalls.Add(animalId);

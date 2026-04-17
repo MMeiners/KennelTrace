@@ -94,7 +94,17 @@ public sealed class AnimalPagesTests : BunitContext
         SetReadOnlyUser();
         _service.DetailsByAnimalId[42] = DetailWithCurrentPlacement();
 
-        var cut = Render<AnimalDetail>(parameters => parameters.Add(x => x.AnimalId, 42));
+        var cut = Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<AnimalDetail>(0);
+                childBuilder.AddAttribute(1, nameof(AnimalDetail.AnimalId), 42);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
 
         Assert.Equal([42], _service.DetailCalls);
         Assert.Contains("A-42", cut.Find("[data-testid='animal-detail-number']").TextContent);
@@ -110,7 +120,17 @@ public sealed class AnimalPagesTests : BunitContext
         SetReadOnlyUser();
         _service.DetailsByAnimalId[42] = DetailWithCurrentPlacement();
 
-        var cut = Render<AnimalDetail>(parameters => parameters.Add(x => x.AnimalId, 42));
+        var cut = Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<AnimalDetail>(0);
+                childBuilder.AddAttribute(1, nameof(AnimalDetail.AnimalId), 42);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
 
         Assert.Contains("Kennel 7 (KEN-7)", cut.Find("[data-testid='animal-current-location']").TextContent);
         Assert.Contains("Phoenix Main (PHX)", cut.Find("[data-testid='animal-current-facility']").TextContent);
@@ -123,7 +143,17 @@ public sealed class AnimalPagesTests : BunitContext
         SetReadOnlyUser();
         _service.DetailsByAnimalId[42] = DetailWithCurrentPlacement();
 
-        var cut = Render<AnimalDetail>(parameters => parameters.Add(x => x.AnimalId, 42));
+        var cut = Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<AnimalDetail>(0);
+                childBuilder.AddAttribute(1, nameof(AnimalDetail.AnimalId), 42);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
 
         Assert.Contains("Current", cut.Find("[data-testid='animal-current-chip']").TextContent);
         Assert.Contains("Current", cut.Find("[data-testid='movement-current-7001']").TextContent);
@@ -136,12 +166,45 @@ public sealed class AnimalPagesTests : BunitContext
         SetReadOnlyUser();
         _service.DetailsByAnimalId[42] = DetailWithCurrentPlacement();
 
-        var cut = Render<AnimalDetail>(parameters => parameters.Add(x => x.AnimalId, 42));
+        var cut = Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<AnimalDetail>(0);
+                childBuilder.AddAttribute(1, nameof(AnimalDetail.AnimalId), 42);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
 
         var historyTable = cut.Find("[data-testid='animal-history-table']");
         Assert.Contains("Phoenix Main (PHX)", historyTable.TextContent);
         Assert.Contains("Isolation Intake (ISO-1)", historyTable.TextContent);
         Assert.Contains("Medical review", historyTable.TextContent);
+    }
+
+    [Fact]
+    public void Animal_Detail_Shows_Record_Move_Action_For_Admin()
+    {
+        SetAdminUser();
+        _service.DetailsByAnimalId[42] = DetailWithCurrentPlacement();
+
+        var cut = Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<AnimalDetail>(0);
+                childBuilder.AddAttribute(1, nameof(AnimalDetail.AnimalId), 42);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        var action = cut.Find("[data-testid='record-move-action']");
+        Assert.Contains("Record move", action.TextContent);
+        Assert.Equal("/admin/animals/42/move", action.GetAttribute("href"));
     }
 
     [Fact]
@@ -191,6 +254,9 @@ public sealed class AnimalPagesTests : BunitContext
 
     private void SetReadOnlyUser() =>
         _authenticationStateProvider.SetUser("readonly-user", KennelTraceRoles.ReadOnly);
+
+    private void SetAdminUser() =>
+        _authenticationStateProvider.SetUser("admin-user", KennelTraceRoles.Admin, KennelTraceRoles.ReadOnly);
 
     private static AnimalDetailResult DetailWithCurrentPlacement() =>
         new(
@@ -270,6 +336,9 @@ public sealed class AnimalPagesTests : BunitContext
             LookupCalls.Add(searchText);
             return Task.FromResult(LookupResults.GetValueOrDefault(searchText ?? string.Empty, Array.Empty<AnimalLookupRow>()));
         }
+
+        public Task<IReadOnlyList<AnimalMoveLocationOption>> ListMoveLocationsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AnimalMoveLocationOption>>([]);
 
         public Task<AnimalDetailResult?> GetAnimalDetailAsync(int animalId, CancellationToken cancellationToken = default)
         {

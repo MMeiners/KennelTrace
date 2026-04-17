@@ -1,0 +1,343 @@
+@page "/admin/animals/{AnimalId:int}/move"
+@rendermode InteractiveServer
+@using System.Globalization
+@using KennelTrace.Infrastructure.Features.Animals.AnimalRecords
+@using KennelTrace.Web.Features.Animals.Admin
+@using KennelTrace.Web.Security
+@attribute [Authorize(Roles = KennelTraceRoles.Admin)]
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAnimalReadService AnimalReadService
+@inject IAnimalMovementAdminService AnimalMovementAdminService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Record Animal Move</PageTitle>
+
+<div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 data-testid="admin-animal-move-page">Record Move</h1>
+        <p class="text-muted mb-0">Record one stay interval for this animal using UTC date and time values. Overlap and current-stay rules are enforced by the movement service.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="@GetAnimalDetailUrl()" data-testid="animal-move-cancel-link">Back to animal</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_saveErrorMessage))
+{
+    <div class="alert alert-danger" role="alert" data-testid="animal-move-save-error">@_saveErrorMessage</div>
+}
+
+@if (_animal is null)
+{
+    <div class="alert alert-warning" role="alert" data-testid="animal-move-not-found">
+        That animal record could not be found.
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <section class="col-lg-5">
+            <div class="card shadow-sm mb-4" data-testid="animal-move-animal-summary">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Animal Summary</h2>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Animal Number</dt>
+                        <dd class="col-sm-8">@_animal.AnimalNumber.Value</dd>
+                        <dt class="col-sm-4">Name</dt>
+                        <dd class="col-sm-8">@GetDisplayName(_animal.Name)</dd>
+                        <dt class="col-sm-4">Species</dt>
+                        <dd class="col-sm-8">@_animal.Species</dd>
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8">@(_animal.IsActive ? "Active" : "Inactive")</dd>
+                    </dl>
+                </div>
+            </div>
+
+            @if (_animal.CurrentPlacement is null)
+            {
+                <div class="alert alert-info" role="status" data-testid="animal-move-no-current-placement">
+                    No current placement is recorded for this animal.
+                </div>
+            }
+            else
+            {
+                <div class="card shadow-sm" data-testid="animal-move-current-placement">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">Current Placement</h2>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Facility</dt>
+                            <dd class="col-sm-8">@_animal.CurrentPlacement.FacilityName (@_animal.CurrentPlacement.FacilityCode.Value)</dd>
+                            <dt class="col-sm-4">Location</dt>
+                            <dd class="col-sm-8">@_animal.CurrentPlacement.LocationName (@_animal.CurrentPlacement.LocationCode.Value)</dd>
+                            <dt class="col-sm-4">Room</dt>
+                            <dd class="col-sm-8">@GetRoomSummary(_animal.CurrentPlacement)</dd>
+                            <dt class="col-sm-4">Start (UTC)</dt>
+                            <dd class="col-sm-8">@FormatUtc(_animal.CurrentPlacement.StartUtc)</dd>
+                        </dl>
+                    </div>
+                </div>
+            }
+        </section>
+
+        <section class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Move Entry</h2>
+                </div>
+                <div class="card-body" data-testid="animal-move-form">
+                    @if (_locations.Count == 0)
+                    {
+                        <div class="alert alert-info" role="status" data-testid="animal-move-no-locations">
+                            No locations are available yet. Add locations before recording movement history.
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label" for="animal-move-location-input">LocationId</label>
+                        <select id="animal-move-location-input"
+                                class="form-select"
+                                data-testid="animal-move-location-input"
+                                @bind="_model.LocationIdText">
+                            <option value="">Select a location</option>
+                            @foreach (var location in _locations)
+                            {
+                                <option value="@location.LocationId">@GetLocationOptionText(location)</option>
+                            }
+                        </select>
+                        @RenderFieldError(nameof(RecordAnimalStayRequest.LocationId))
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="animal-move-start-input">StartUtc</label>
+                        <input id="animal-move-start-input"
+                               type="datetime-local"
+                               class="form-control"
+                               data-testid="animal-move-start-input"
+                               value="@_model.StartUtcText"
+                               @oninput="OnStartUtcChanged" />
+                        <div class="form-text">Enter the UTC start date and time.</div>
+                        @RenderFieldError(nameof(RecordAnimalStayRequest.StartUtc))
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="animal-move-end-input">EndUtc</label>
+                        <input id="animal-move-end-input"
+                               type="datetime-local"
+                               class="form-control"
+                               data-testid="animal-move-end-input"
+                               value="@_model.EndUtcText"
+                               @oninput="OnEndUtcChanged" />
+                        <div class="form-text">Leave blank to keep the stay open/current.</div>
+                        @RenderFieldError(nameof(RecordAnimalStayRequest.EndUtc))
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="animal-move-reason-input">MovementReason</label>
+                        <input id="animal-move-reason-input"
+                               class="form-control"
+                               data-testid="animal-move-reason-input"
+                               @bind="_model.MovementReason"
+                               @bind:event="oninput" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="animal-move-notes-input">Notes</label>
+                        <textarea id="animal-move-notes-input"
+                                  class="form-control"
+                                  rows="4"
+                                  data-testid="animal-move-notes-input"
+                                  @bind="_model.Notes"
+                                  @bind:event="oninput"></textarea>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="button"
+                                class="btn btn-primary"
+                                data-testid="animal-move-save-button"
+                                @onclick="SaveAsync">
+                            Save Move
+                        </button>
+                        <a class="btn btn-outline-secondary" href="@GetAnimalDetailUrl()">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly Dictionary<string, string[]> _fieldErrors = [];
+    private AnimalMoveFormModel _model = new();
+    private AnimalDetailResult? _animal;
+    private IReadOnlyList<AnimalMoveLocationOption> _locations = [];
+    private string? _saveErrorMessage;
+
+    [Parameter]
+    public int AnimalId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        ClearFeedback();
+        _animal = await AnimalReadService.GetAnimalDetailAsync(AnimalId);
+        _locations = await AnimalReadService.ListMoveLocationsAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        ClearFeedback();
+
+        if (_animal is null)
+        {
+            _saveErrorMessage = "The selected animal could not be loaded.";
+            return;
+        }
+
+        if (!int.TryParse(_model.LocationIdText, NumberStyles.None, CultureInfo.InvariantCulture, out var locationId) || locationId <= 0)
+        {
+            _fieldErrors[nameof(RecordAnimalStayRequest.LocationId)] = ["Select a location before recording a stay."];
+            return;
+        }
+
+        if (!TryParseUtcDateTime(_model.StartUtcText, out var startUtc))
+        {
+            _fieldErrors[nameof(RecordAnimalStayRequest.StartUtc)] = ["StartUtc must be a valid UTC date and time."];
+            return;
+        }
+
+        if (!TryParseNullableUtcDateTime(_model.EndUtcText, out var endUtc))
+        {
+            _fieldErrors[nameof(RecordAnimalStayRequest.EndUtc)] = ["EndUtc must be a valid UTC date and time when provided."];
+            return;
+        }
+
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var result = await AnimalMovementAdminService.RecordStayAsync(
+            new RecordAnimalStayRequest(
+                _animal.AnimalId,
+                locationId,
+                startUtc,
+                endUtc,
+                NormalizeOptionalText(_model.MovementReason),
+                NormalizeOptionalText(_model.Notes)),
+            authenticationState.User);
+
+        if (result.Status == RecordAnimalStayStatus.Forbidden)
+        {
+            _saveErrorMessage = "Only admins can record movement history.";
+            return;
+        }
+
+        if (result.Status == RecordAnimalStayStatus.ValidationFailed)
+        {
+            foreach (var pair in result.ValidationErrors)
+            {
+                _fieldErrors[pair.Key] = pair.Value.ToArray();
+            }
+
+            return;
+        }
+
+        NavigationManager.NavigateTo(GetAnimalDetailUrl());
+    }
+
+    private void OnStartUtcChanged(ChangeEventArgs args)
+    {
+        _model.StartUtcText = args.Value?.ToString();
+    }
+
+    private void OnEndUtcChanged(ChangeEventArgs args)
+    {
+        _model.EndUtcText = args.Value?.ToString();
+    }
+
+    private void ClearFeedback()
+    {
+        _fieldErrors.Clear();
+        _saveErrorMessage = null;
+    }
+
+    private string GetAnimalDetailUrl() =>
+        $"/animals/{AnimalId}";
+
+    private static bool TryParseUtcDateTime(string? value, out DateTime parsedValue)
+    {
+        if (DateTime.TryParseExact(value, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            parsedValue = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            return true;
+        }
+
+        parsedValue = default;
+        return false;
+    }
+
+    private static bool TryParseNullableUtcDateTime(string? value, out DateTime? parsedValue)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            parsedValue = null;
+            return true;
+        }
+
+        if (TryParseUtcDateTime(value, out var parsed))
+        {
+            parsedValue = parsed;
+            return true;
+        }
+
+        parsedValue = null;
+        return false;
+    }
+
+    private static string? NormalizeOptionalText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string GetDisplayName(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Unnamed animal" : value;
+
+    private static string FormatUtc(DateTime value) =>
+        value.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture);
+
+    private static string GetRoomSummary(AnimalCurrentPlacementSummary placement) =>
+        placement.RoomLocationId.HasValue && placement.RoomLocationCode is not null && !string.IsNullOrWhiteSpace(placement.RoomName)
+            ? $"{placement.RoomName} ({placement.RoomLocationCode.Value})"
+            : "Not recorded";
+
+    private static string GetLocationOptionText(AnimalMoveLocationOption location)
+    {
+        var status = location.IsActive ? string.Empty : " [Inactive]";
+        return $"{location.LocationId} - {location.FacilityCode.Value}/{location.LocationCode.Value} - {location.LocationName} ({location.LocationType}){status}";
+    }
+
+    private RenderFragment RenderFieldError(string fieldName) => builder =>
+    {
+        if (!_fieldErrors.TryGetValue(fieldName, out var messages))
+        {
+            return;
+        }
+
+        var sequence = 0;
+        foreach (var message in messages)
+        {
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "text-danger small mt-1");
+            builder.AddContent(sequence++, message);
+            builder.CloseElement();
+        }
+    };
+
+    private sealed class AnimalMoveFormModel
+    {
+        public string? LocationIdText { get; set; }
+
+        public string? StartUtcText { get; set; }
+
+        public string? EndUtcText { get; set; }
+
+        public string? MovementReason { get; set; }
+
+        public string? Notes { get; set; }
+    }
+}

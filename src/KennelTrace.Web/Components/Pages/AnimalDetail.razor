@@ -90,6 +90,27 @@
             </MudCard>
         }
 
+        <AuthorizeView Roles="@KennelTraceRoles.Admin">
+            <Authorized>
+                <MudCard data-testid="animal-quick-actions-card">
+                    <MudCardContent>
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                            <div>
+                                <MudText Typo="Typo.h6">Quick actions</MudText>
+                                <MudText Typo="Typo.body2" Class="text-muted">Admin-only movement entry stays separate from the read-only detail view.</MudText>
+                            </div>
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       Href="@($"/admin/animals/{_animal.AnimalId}/move")"
+                                       data-testid="record-move-action">
+                                Record move
+                            </MudButton>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            </Authorized>
+        </AuthorizeView>
+
         <MudCard>
             <MudCardContent>
                 <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">

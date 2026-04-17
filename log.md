@@ -284,3 +284,33 @@ Verification result in this shell:
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter "FullyQualifiedName~AnimalMovementAdminServiceTests"` passed with 9 tests.
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 63 tests.
 - `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 63 passing tests, `tests/KennelTrace.Web.Tests` reporting 39 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
+
+## 2026-04-17 11:11:40 -07:00
+
+Implemented the Step 9 admin move-entry UI slice without starting trace UI work. The read-only animal detail page at `src/KennelTrace.Web/Components/Pages/AnimalDetail.razor` now keeps its existing summary/history role and adds an admin-only `Record move` action that links to the new admin-only workflow at `/admin/animals/{animalId:int}/move`. The new `AdminAnimalMove.razor` page stays intentionally form-based: it loads the selected animal through the existing `IAnimalReadService`, shows a basic summary plus current placement, loads persisted location options through a small addition to the existing animal read seam, accepts `LocationId`, `StartUtc`, optional `EndUtc`, `MovementReason`, and `Notes`, and delegates all overlap/open-stay enforcement to the existing `AnimalMovementAdminService` instead of duplicating those rules in Razor.
+
+Added focused automated coverage for the requested workflow. `tests/KennelTrace.Web.Tests` now includes bUnit coverage for admin visibility of the `Record move` action, move-form render, validation/error display from failed saves, successful save navigation back to detail, refreshed detail-state after save, and direct-route authorization for the new admin page. `tests/KennelTrace.Tests/AnimalReadServiceTests.cs` also adds one integration case for the new move-location read model so the admin move form stays backed by persisted data rather than ad hoc UI state.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed because the new detail-page `AuthorizeView` required a cascading authentication state in existing bUnit detail tests, and the new detail-refresh test needed MudBlazor test services.
+- The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed during compile because the new test helpers used the wrong bUnit render-helper type and were missing a `KeyboardEventArgs` import.
+- The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 46 tests.
+- The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run timed out in this shell.
+- The second `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run failed because the new integration test fixture created a kennel without its required room-like parent.
+- The final `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 64 tests.
+- `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 64 passing tests, `tests/KennelTrace.Web.Tests` reporting 46 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
+- The final `dotnet build KennelTrace.sln` passed against the finished code state.

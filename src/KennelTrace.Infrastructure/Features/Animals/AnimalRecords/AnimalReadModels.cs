@@ -10,6 +10,16 @@ public sealed record AnimalLookupRow(
     string Species,
     bool IsActive);
 
+public sealed record AnimalMoveLocationOption(
+    int LocationId,
+    int FacilityId,
+    FacilityCode FacilityCode,
+    string FacilityName,
+    LocationCode LocationCode,
+    string LocationName,
+    LocationType LocationType,
+    bool IsActive);
+
 public sealed record AnimalCurrentPlacementSummary(
     long MovementEventId,
     DateTime StartUtc,

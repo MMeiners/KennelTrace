@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Bunit;
 using KennelTrace.Infrastructure.Features.Animals.AnimalRecords;
 using KennelTrace.Web.Components.Pages;
@@ -12,13 +13,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace KennelTrace.Web.Tests;
 
-public sealed class AdminAnimalsRouteTests : BunitContext
+public sealed class AdminAnimalMoveRouteTests : BunitContext
 {
     private readonly TestAuthenticationStateProvider _authenticationStateProvider = new();
     private readonly FakeAnimalReadService _readService = new();
-    private readonly FakeAnimalAdminService _adminService = new();
+    private readonly FakeAnimalMovementAdminService _movementAdminService = new();
 
-    public AdminAnimalsRouteTests()
+    public AdminAnimalMoveRouteTests()
     {
         Services.RemoveAll<IAuthorizationService>();
         Services.RemoveAll<IAuthorizationPolicyProvider>();
@@ -28,11 +29,11 @@ public sealed class AdminAnimalsRouteTests : BunitContext
         Services.AddAuthorizationCore();
         Services.AddSingleton<AuthenticationStateProvider>(_authenticationStateProvider);
         Services.AddSingleton<IAnimalReadService>(_readService);
-        Services.AddSingleton<IAnimalAdminService>(_adminService);
+        Services.AddSingleton<IAnimalMovementAdminService>(_movementAdminService);
     }
 
     [Fact]
-    public void Admin_Animals_Route_Renders_For_Admin_User()
+    public void Admin_Animal_Move_Route_Renders_For_Admin_User()
     {
         _authenticationStateProvider.SetUser("admin-user", KennelTraceRoles.Admin, KennelTraceRoles.ReadOnly);
 
@@ -42,18 +43,18 @@ public sealed class AdminAnimalsRouteTests : BunitContext
             builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
             {
                 childBuilder.OpenComponent<AuthorizeRouteView>(0);
-                childBuilder.AddAttribute(1, "RouteData", new RouteData(typeof(AdminAnimals), new Dictionary<string, object?>()));
+                childBuilder.AddAttribute(1, "RouteData", new RouteData(typeof(AdminAnimalMove), new Dictionary<string, object?> { ["AnimalId"] = 42 }));
                 childBuilder.AddAttribute(2, "DefaultLayout", typeof(TestLayout));
                 childBuilder.CloseComponent();
             }));
             builder.CloseComponent();
         });
 
-        Assert.Contains("Animal Admin", cut.Markup);
+        Assert.Contains("Record Move", cut.Markup);
     }
 
     [Fact]
-    public void Admin_Animals_Route_Is_Rejected_For_ReadOnly_User()
+    public void Admin_Animal_Move_Route_Is_Rejected_For_ReadOnly_User()
     {
         _authenticationStateProvider.SetUser("readonly-user", KennelTraceRoles.ReadOnly);
 
@@ -63,15 +64,15 @@ public sealed class AdminAnimalsRouteTests : BunitContext
             builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
             {
                 childBuilder.OpenComponent<AuthorizeRouteView>(0);
-                childBuilder.AddAttribute(1, "RouteData", new RouteData(typeof(AdminAnimals), new Dictionary<string, object?>()));
+                childBuilder.AddAttribute(1, "RouteData", new RouteData(typeof(AdminAnimalMove), new Dictionary<string, object?> { ["AnimalId"] = 42 }));
                 childBuilder.AddAttribute(2, "DefaultLayout", typeof(TestLayout));
                 childBuilder.CloseComponent();
             }));
             builder.CloseComponent();
         });
 
-        Assert.DoesNotContain("Animal Admin", cut.Markup);
-        Assert.DoesNotContain("Save Animal", cut.Markup);
+        Assert.DoesNotContain("Record Move", cut.Markup);
+        Assert.DoesNotContain("Save Move", cut.Markup);
     }
 
     private sealed class TestLayout : LayoutComponentBase
@@ -94,9 +95,9 @@ public sealed class AdminAnimalsRouteTests : BunitContext
             Task.FromResult<AnimalDetailResult?>(null);
     }
 
-    private sealed class FakeAnimalAdminService : IAnimalAdminService
+    private sealed class FakeAnimalMovementAdminService : IAnimalMovementAdminService
     {
-        public Task<AnimalSaveResult> SaveAsync(AnimalSaveRequest request, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
-            Task.FromResult(AnimalSaveResult.Forbidden());
+        public Task<RecordAnimalStayResult> RecordStayAsync(RecordAnimalStayRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
+            Task.FromResult(RecordAnimalStayResult.Forbidden());
     }
 }

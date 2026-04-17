@@ -37,6 +37,28 @@ public sealed class AnimalReadService(KennelTraceDbContext dbContext) : IAnimalR
             .ToList();
     }
 
+    public async Task<IReadOnlyList<AnimalMoveLocationOption>> ListMoveLocationsAsync(CancellationToken cancellationToken = default)
+    {
+        return await (
+                from location in dbContext.Locations.AsNoTracking()
+                join facility in dbContext.Facilities.AsNoTracking()
+                    on location.FacilityId equals facility.FacilityId
+                orderby location.IsActive descending,
+                    facility.Name,
+                    location.Name,
+                    location.LocationId
+                select new AnimalMoveLocationOption(
+                    location.LocationId,
+                    facility.FacilityId,
+                    facility.FacilityCode,
+                    facility.Name,
+                    location.LocationCode,
+                    location.Name,
+                    location.LocationType,
+                    location.IsActive))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<AnimalDetailResult?> GetAnimalDetailAsync(int animalId, CancellationToken cancellationToken = default)
     {
         var animal = await dbContext.Animals
