@@ -58,18 +58,25 @@ public sealed class AdminLayoutSmokeTests : IAsyncLifetime
         ArgumentNullException.ThrowIfNull(_baseAddress);
 
         var page = await _browser.NewPageAsync();
-        await page.GotoAsync(new Uri(_baseAddress, "admin/layout").ToString());
-        await page.WaitForResponseAsync(
-            response => response.Url.Contains("/_blazor/negotiate", StringComparison.OrdinalIgnoreCase) && response.Ok,
-            new PageWaitForResponseOptions
+        await page.RunAndWaitForWebSocketAsync(
+            () => page.GotoAsync(new Uri(_baseAddress, "admin/layout").ToString()),
+            new PageRunAndWaitForWebSocketOptions
             {
+                Predicate = webSocket => webSocket.Url.Contains("/_blazor", StringComparison.OrdinalIgnoreCase),
                 Timeout = 15000
             });
 
         await Expect(page.GetByTestId("admin-layout-page")).ToHaveTextAsync("Layout Admin");
+        await Expect(page.GetByTestId("location-item-120")).ToContainTextAsync("Existing Room");
+        await page.GetByTestId("location-item-120").ClickAsync();
+        await Expect(page.GetByTestId("location-code-input")).ToHaveValueAsync("ROOM-A");
+        await Expect(page.GetByTestId("location-name-input")).ToHaveValueAsync("Existing Room");
+        await page.GetByTestId("new-location-button").ClickAsync();
 
-        await page.GetByTestId("location-code-input").FillAsync("ROOM-B");
-        await page.GetByTestId("location-name-input").FillAsync("Surgery Prep");
+        var locationCodeInput = page.GetByTestId("location-code-input");
+        var locationNameInput = page.GetByTestId("location-name-input");
+        await locationCodeInput.FillAsync("ROOM-B");
+        await locationNameInput.FillAsync("Surgery Prep");
         await page.GetByTestId("location-save-button").ClickAsync();
 
         await Expect(page.GetByTestId("location-save-success")).ToContainTextAsync("Surgery Prep saved.");

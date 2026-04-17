@@ -95,9 +95,9 @@ public sealed class AdminLayoutPageTests : BunitContext
 
         var cut = Render<AdminLayout>();
 
-        cut.Find("[data-testid='location-code-input']").Change("ROOM-C");
-        cut.Find("[data-testid='location-name-input']").Change("Room C");
-        cut.Find("[data-testid='display-order-input']").Change("5");
+        cut.Find("[data-testid='location-code-input']").Input("ROOM-C");
+        cut.Find("[data-testid='location-name-input']").Input("Room C");
+        cut.Find("[data-testid='display-order-input']").Input("5");
         cut.Find("[data-testid='location-save-button']").Click();
 
         Assert.Single(_locationService.SaveRequests);
@@ -126,7 +126,7 @@ public sealed class AdminLayoutPageTests : BunitContext
         var cut = Render<AdminLayout>();
 
         cut.Find("[data-testid='location-item-101']").Click();
-        cut.Find("[data-testid='location-name-input']").Change("Room Alpha");
+        cut.Find("[data-testid='location-name-input']").Input("Room Alpha");
         cut.Find("[data-testid='location-save-button']").Click();
 
         Assert.Single(_locationService.SaveRequests);
@@ -147,8 +147,8 @@ public sealed class AdminLayoutPageTests : BunitContext
 
         var cut = Render<AdminLayout>();
 
-        cut.Find("[data-testid='location-code-input']").Change("ROOM-A");
-        cut.Find("[data-testid='location-name-input']").Change("Room A");
+        cut.Find("[data-testid='location-code-input']").Input("ROOM-A");
+        cut.Find("[data-testid='location-name-input']").Input("Room A");
         cut.Find("[data-testid='location-save-button']").Click();
 
         Assert.Contains("Location code must be unique within the facility.", cut.Markup);
@@ -215,10 +215,10 @@ public sealed class AdminLayoutPageTests : BunitContext
         var cut = Render<AdminLayout>();
         cut.Find("[data-testid='location-item-101']").Click();
 
-        cut.Find("[data-testid='placement-grid-row-201']").Change("2");
-        cut.Find("[data-testid='placement-grid-column-201']").Change("3");
-        cut.Find("[data-testid='placement-stack-level-201']").Change("1");
-        cut.Find("[data-testid='placement-display-order-201']").Change("7");
+        cut.Find("[data-testid='placement-grid-row-201']").Input("2");
+        cut.Find("[data-testid='placement-grid-column-201']").Input("3");
+        cut.Find("[data-testid='placement-stack-level-201']").Input("1");
+        cut.Find("[data-testid='placement-display-order-201']").Input("7");
         cut.Find("[data-testid='placement-save-201']").Click();
 
         Assert.Single(_locationService.SaveRequests);
@@ -294,8 +294,8 @@ public sealed class AdminLayoutPageTests : BunitContext
 
         cut.Find("[data-testid='link-type-input']").Change(LinkType.AdjacentRight.ToString());
         cut.Find("[data-testid='link-counterparty-input']").Change("202");
-        cut.Find("[data-testid='link-source-reference-input']").Change("whiteboard");
-        cut.Find("[data-testid='link-notes-input']").Change("Created during review");
+        cut.Find("[data-testid='link-source-reference-input']").Input("whiteboard");
+        cut.Find("[data-testid='link-notes-input']").Input("Created during review");
         cut.Find("[data-testid='link-save-button']").Click();
 
         Assert.Single(_locationLinkService.SaveRequests);

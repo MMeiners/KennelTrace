@@ -82,7 +82,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                     <input id="facility-code"
                            class="form-control"
                            data-testid="facility-code-input"
-                           @bind="_facilityModel.FacilityCode" />
+                           @bind="_facilityModel.FacilityCode"
+                           @bind:event="oninput" />
                     @RenderFieldError(_facilityFieldErrors, nameof(FacilitySaveRequest.FacilityCode))
                 </div>
 
@@ -91,7 +92,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                     <input id="facility-name"
                            class="form-control"
                            data-testid="facility-name-input"
-                           @bind="_facilityModel.Name" />
+                           @bind="_facilityModel.Name"
+                           @bind:event="oninput" />
                     @RenderFieldError(_facilityFieldErrors, nameof(FacilitySaveRequest.Name))
                 </div>
 
@@ -100,7 +102,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                     <input id="facility-timezone"
                            class="form-control"
                            data-testid="facility-timezone-input"
-                           @bind="_facilityModel.TimeZoneId" />
+                           @bind="_facilityModel.TimeZoneId"
+                           @bind:event="oninput" />
                     @RenderFieldError(_facilityFieldErrors, nameof(FacilitySaveRequest.TimeZoneId))
                 </div>
 
@@ -119,7 +122,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                               class="form-control"
                               rows="4"
                               data-testid="facility-notes-input"
-                              @bind="_facilityModel.Notes"></textarea>
+                              @bind="_facilityModel.Notes"
+                              @bind:event="oninput"></textarea>
                 </div>
 
                 <div class="d-flex gap-2">
@@ -261,7 +265,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                             <input id="location-code-input"
                                    class="form-control"
                                    data-testid="location-code-input"
-                                   @bind="_locationModel.LocationCode" />
+                                   @bind="_locationModel.LocationCode"
+                                   @bind:event="oninput" />
                             @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.LocationCode))
                         </div>
 
@@ -270,7 +275,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                             <input id="location-name-input"
                                    class="form-control"
                                    data-testid="location-name-input"
-                                   @bind="_locationModel.Name" />
+                                   @bind="_locationModel.Name"
+                                   @bind:event="oninput" />
                             @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.Name))
                         </div>
 
@@ -306,7 +312,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                                    type="number"
                                    class="form-control"
                                    data-testid="display-order-input"
-                                   @bind="_locationModel.DisplayOrderText" />
+                                   @bind="_locationModel.DisplayOrderText"
+                                   @bind:event="oninput" />
                             @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.DisplayOrder))
                         </div>
 
@@ -319,7 +326,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                                            type="number"
                                            class="form-control"
                                            data-testid="grid-row-input"
-                                           @bind="_locationModel.GridRowText" />
+                                           @bind="_locationModel.GridRowText"
+                                           @bind:event="oninput" />
                                     @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.GridRow))
                                 </div>
                                 <div class="col-sm-4">
@@ -328,7 +336,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                                            type="number"
                                            class="form-control"
                                            data-testid="grid-column-input"
-                                           @bind="_locationModel.GridColumnText" />
+                                           @bind="_locationModel.GridColumnText"
+                                           @bind:event="oninput" />
                                     @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.GridColumn))
                                 </div>
                                 <div class="col-sm-4">
@@ -337,7 +346,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                                            type="number"
                                            class="form-control"
                                            data-testid="stack-level-input"
-                                           @bind="_locationModel.StackLevelText" />
+                                           @bind="_locationModel.StackLevelText"
+                                           @bind:event="oninput" />
                                     @RenderFieldError(_locationFieldErrors, nameof(LocationSaveRequest.StackLevel))
                                 </div>
                             </div>
@@ -358,7 +368,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                                       class="form-control"
                                       rows="4"
                                       data-testid="location-notes-input"
-                                      @bind="_locationModel.Notes"></textarea>
+                                      @bind="_locationModel.Notes"
+                                      @bind:event="oninput"></textarea>
                         </div>
 
                         <div class="d-flex gap-2">
@@ -591,28 +602,32 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                                                         <input type="number"
                                                                class="form-control form-control-sm"
                                                                data-testid="@($"placement-grid-row-{row.LocationId}")"
-                                                               @bind="row.GridRowText" />
+                                                               @bind="row.GridRowText"
+                                                               @bind:event="oninput" />
                                                         @RenderFieldError(row.FieldErrors, nameof(LocationSaveRequest.GridRow))
                                                     </td>
                                                     <td>
                                                         <input type="number"
                                                                class="form-control form-control-sm"
                                                                data-testid="@($"placement-grid-column-{row.LocationId}")"
-                                                               @bind="row.GridColumnText" />
+                                                               @bind="row.GridColumnText"
+                                                               @bind:event="oninput" />
                                                         @RenderFieldError(row.FieldErrors, nameof(LocationSaveRequest.GridColumn))
                                                     </td>
                                                     <td>
                                                         <input type="number"
                                                                class="form-control form-control-sm"
                                                                data-testid="@($"placement-stack-level-{row.LocationId}")"
-                                                               @bind="row.StackLevelText" />
+                                                               @bind="row.StackLevelText"
+                                                               @bind:event="oninput" />
                                                         @RenderFieldError(row.FieldErrors, nameof(LocationSaveRequest.StackLevel))
                                                     </td>
                                                     <td>
                                                         <input type="number"
                                                                class="form-control form-control-sm"
                                                                data-testid="@($"placement-display-order-{row.LocationId}")"
-                                                               @bind="row.DisplayOrderText" />
+                                                               @bind="row.DisplayOrderText"
+                                                               @bind:event="oninput" />
                                                         @RenderFieldError(row.FieldErrors, nameof(LocationSaveRequest.DisplayOrder))
                                                     </td>
                                                     <td class="text-end">
@@ -784,7 +799,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                         <input id="link-source-reference-input"
                                class="form-control"
                                data-testid="link-source-reference-input"
-                               @bind="_linkDialog.SourceReference" />
+                               @bind="_linkDialog.SourceReference"
+                               @bind:event="oninput" />
                     </div>
 
                     <div class="mb-0">
@@ -793,7 +809,8 @@ else if (!string.IsNullOrWhiteSpace(_facilitySaveSuccessMessage))
                                   class="form-control"
                                   rows="3"
                                   data-testid="link-notes-input"
-                                  @bind="_linkDialog.Notes"></textarea>
+                                  @bind="_linkDialog.Notes"
+                                  @bind:event="oninput"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

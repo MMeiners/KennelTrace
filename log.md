@@ -161,3 +161,49 @@ Verification result in this shell:
 - `dotnet build tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj /p:UseSharedCompilation=false --no-restore` passed and compiled the new admin smoke test.
 - `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj --no-build` passed with 1 active Playwright smoke test and 1 intentionally skipped environment-dependent home-page test.
 - `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --no-build` timed out in this shell and was not used as a success signal for this slice.
+
+## 2026-04-17 10:45:00 -07:00
+
+Implemented the Step 9 read-side animal lookup/detail slice under `src/KennelTrace.Infrastructure/Features/Animals/AnimalRecords`. This added an EF Core-backed `AnimalReadService` plus a small `IAnimalReadService` seam mirroring the existing facility-map query pattern, page-focused DTOs for lookup rows, detail results, current placement summaries, and movement history rows, and DI registration through the existing SQL Server service extension. Animal detail now derives current placement strictly from the open `MovementEvent` row, returns current facility/location from stored data, includes room context when available, keeps movement history in deterministic reverse chronological order using `StartUtc DESC` plus `MovementEventId DESC`, and still shows historical rows after related locations are later marked inactive.
+
+Added SQL-backed integration coverage in `tests/KennelTrace.Tests/AnimalReadServiceTests.cs` for lookup by `AnimalNumber`, lookup by `Name`, detail data with no current placement, current placement from an open stay, reverse-chronological history ordering, and inactive-location history visibility. The simple lookup path remains EF-backed but filters in memory after materializing `Animals`, because EF Core translation against the existing `AnimalCode` value-converted property produced provider coercion errors when trying to query `AnimalNumber` text directly.
+
+Commands actually run in this shell for this slice:
+
+- `git status --short`
+- `dotnet build KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+
+Verification result in this shell:
+
+- The final `dotnet build KennelTrace.sln` passed.
+- Earlier `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` runs failed while fixing `AnimalReadService.LookupAnimalsAsync()` translation/coercion issues around the `AnimalCode` value converter.
+- The final `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` passed with 50 tests.
+- `dotnet test KennelTrace.sln` did not pass because the existing Playwright test `KennelTrace.PlaywrightTests.AdminLayoutSmokeTests.Admin_Layout_HappyPath_Creates_Room_And_Kennel_Then_Shows_Them_On_Facility_Map` failed waiting for `data-testid="location-save-success"` to contain `Surgery Prep saved.`.
+- In that same solution test run, `tests/KennelTrace.Web.Tests` passed with 23 tests, `tests/KennelTrace.Tests` passed with 50 tests, and `tests/KennelTrace.PlaywrightTests` had 1 failed and 1 skipped test.
+
+## 2026-04-17 09:22:50 -07:00
+
+Fixed the admin-layout Playwright regression that was failing after the latest slice. The root cause was interactive Blazor prerendered markup: the browser smoke could type into the prerendered admin form before the live `/_blazor` circuit was attached, so the first save request reached the server with empty location values and the page fell back to the generic location-save error path.
+
+The fix disables prerendering for the routed app shell in `src/KennelTrace.Web/Components/App.razor`, updates the admin form inputs in `src/KennelTrace.Web/Components/Pages/AdminLayout.razor` to bind on `oninput`, hardens the Playwright smoke to wait for the Blazor websocket and prove the page is interactive before starting the create flow, and updates the affected bUnit tests to dispatch `Input(...)` for those fields.
+
+Commands run in this repo for the fix were:
+
+- `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj --filter "FullyQualifiedName~Admin_Layout_HappyPath_Creates_Room_And_Kennel_Then_Shows_Them_On_Facility_Map"`
+- `dotnet test tests/KennelTrace.PlaywrightTests/KennelTrace.PlaywrightTests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+
+Verification result in this shell:
+
+- The focused admin Playwright smoke passed.
+- `tests/KennelTrace.PlaywrightTests` passed with 1 active test passing and 1 intentionally skipped environment-dependent test.
+- `tests/KennelTrace.Web.Tests` passed with 23 tests.
+- `dotnet test KennelTrace.sln` passed across all three test projects.
