@@ -595,3 +595,29 @@ Verification result in this shell:
 - The second `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter FacilityLayoutImportServiceTests` run passed with 6 tests.
 - `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 13:24:41 -07:00`.
 - `git status --short` showed the expected import/admin UI worktree changes for the new page, services, tests, and supporting import-service updates.
+
+## 2026-04-18 13:42:38 -07:00
+
+Extended the thin admin workbook import UI on `/admin/imports` so admins can choose either `Validate only` or `Validate and commit` without changing the overall MVP import architecture. `src/KennelTrace.Web/Components/Pages/AdminImports.razor` now keeps the existing validate-only path intact, adds a second `Validate and commit` action, preserves the canonical workbook hint, and shows the latest persisted batch summary plus row-level issues for either run mode in the same table-first operational layout. `src/KennelTrace.Web/Features/Imports/Admin/ImportAdminService.cs` now accepts the selected `ImportBatchRunMode` and still enforces server-side `AdminOnly` authorization before calling the existing backend import pipeline.
+
+Enabled the existing commit-capable backend for the admin upload path instead of adding a new workflow. `src/KennelTrace.Infrastructure/Features/Imports/FacilityLayoutImportService.cs` now allows a valid stream-upload request to enter the existing validation-first commit path, so `/admin/imports` uses the same batch logging, natural-key upsert, warning/error visibility, and clean-failure semantics as the already-supported canonical commit mode. Updated focused tests in `tests/KennelTrace.Web.Tests/AdminImportsPageTests.cs`, `tests/KennelTrace.Web.Tests/AdminImportsRouteTests.cs`, `tests/KennelTrace.Tests/FacilityLayoutImportServiceTests.cs`, and `tests/KennelTrace.Tests/SqlServerPersistenceIntegrationTests.cs` to cover validate-only continuity, commit wiring, failed-commit rendering, route protection, commit-mode upload-path behavior, and the existing persisted commit semantics on the stream-upload seam used by the page. Updated `README.md` to describe the expanded admin imports page behavior.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter "FullyQualifiedName~FacilityLayoutImportServiceTests|FullyQualifiedName~SqlServerPersistenceIntegrationTests"`
+- `dotnet build KennelTrace.sln /p:UseSharedCompilation=false`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+- `git status --short`
+
+Verification result in this shell:
+
+- The initial `dotnet build KennelTrace.sln` failed with a transient `CS2012` file lock on `src\KennelTrace.Domain\obj\Debug\net10.0\KennelTrace.Domain.dll` from `VBCSCompiler` / Microsoft Defender.
+- The initial `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` failed for the same transient `CS2012` file lock before executing the test assembly.
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter "FullyQualifiedName~FacilityLayoutImportServiceTests|FullyQualifiedName~SqlServerPersistenceIntegrationTests"` passed with 15 tests in `1 m 32 s`.
+- `dotnet build KennelTrace.sln /p:UseSharedCompilation=false` passed with `0` warnings and `0` errors.
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build` passed with `79` tests.
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 13:42:38 -07:00`.
+- `git status --short` showed the expected worktree changes for `README.md`, the admin-import UI/service files, and the focused tests/import-service updates.

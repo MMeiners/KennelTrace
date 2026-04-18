@@ -100,7 +100,7 @@ public sealed class AdminImportsRouteTests : BunitContext
 
     private sealed class FakeImportAdminService : IImportAdminService
     {
-        public Task<ImportAdminRunResult> ValidateAsync(ImportAdminValidateRequest request, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
+        public Task<ImportAdminRunResult> RunAsync(ImportAdminRunRequest request, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken = default) =>
             Task.FromResult(ImportAdminRunResult.Forbidden());
     }
 }

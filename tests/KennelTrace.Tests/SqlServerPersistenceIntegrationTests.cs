@@ -228,6 +228,40 @@ public sealed class SqlServerPersistenceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Upload_Request_Commit_Mode_Can_Persist_A_Clean_Workbook_And_Batch_Metadata()
+    {
+        await using var context = CreateContext();
+        var service = CreateImportService(context);
+        await using var workbookStream = File.OpenRead(GetFixturePath("PHX_MAIN_Layout_20260412.xlsx"));
+
+        var result = await service.ValidateAsync(new FacilityLayoutImportUploadRequest(
+            workbookStream,
+            "PHX_MAIN_Layout_20260412.xlsx",
+            "import-admin",
+            ImportBatchRunMode.Commit));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(0, result.ErrorCount);
+        Assert.NotNull(result.ImportBatchId);
+        Assert.Contains("Commit succeeded", result.DisplayText, StringComparison.Ordinal);
+
+        var workbook = result.Report.Workbook;
+        var facilityCode = workbook.Facilities.Single().FacilityCode;
+        var facility = await context.Facilities.SingleAsync(x => x.FacilityCode == new FacilityCode(facilityCode));
+        var locations = await context.Locations.Where(x => x.FacilityId == facility.FacilityId).ToListAsync();
+        var activeLinks = await context.LocationLinks.Where(x => x.FacilityId == facility.FacilityId && x.IsActive).ToListAsync();
+        var batch = await context.ImportBatches.SingleAsync(x => x.ImportBatchId == result.ImportBatchId);
+
+        Assert.Equal(workbook.Rooms.Count + workbook.Kennels.Count, locations.Count);
+        Assert.Equal(GetExpandedLinkCount(workbook.LocationLinks), activeLinks.Count);
+        Assert.Equal(ImportBatchRunMode.Commit, batch.RunMode);
+        Assert.Equal(ImportBatchStatus.Succeeded, batch.Status);
+        Assert.Equal(facility.FacilityId, batch.FacilityId);
+        Assert.Equal("import-admin", batch.ExecutedByUserId);
+        Assert.Empty(await context.ImportIssues.Where(x => x.ImportBatchId == result.ImportBatchId).ToListAsync());
+    }
+
+    [Fact]
     public async Task Commit_Mode_ReRun_Is_Idempotent_For_Locations_And_Links()
     {
         await using var context = CreateContext();

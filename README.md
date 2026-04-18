@@ -22,7 +22,7 @@ What is already defined:
 - Blazor Server web host scaffold
 - modular monolith solution structure under `src/` and `tests/`
 - validated solution-level build and test commands
-- admin-only `/admin/imports` page for validate-only canonical `.xlsx` workbook uploads, row-level issue review, and recent persisted import history
+- admin-only `/admin/imports` page for canonical `.xlsx` workbook uploads in validate-only or validate-and-commit mode, row-level issue review, and recent persisted import history
 
 ## Why this project exists
 

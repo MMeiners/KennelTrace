@@ -15,13 +15,13 @@
 <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
     <div>
         <h1 data-testid="admin-imports-page">Admin Imports</h1>
-        <p class="text-muted mb-0">Upload one canonical workbook, run validate-only, review row-level issues, and inspect recent persisted import history.</p>
+        <p class="text-muted mb-0">Upload one canonical workbook, run validate-only or validate-and-commit, review row-level issues, and inspect recent persisted import history.</p>
     </div>
 </div>
 
 <section class="card shadow-sm mb-4">
     <div class="card-header">
-        <h2 class="h5 mb-0">Validate Canonical Workbook</h2>
+        <h2 class="h5 mb-0">Run Canonical Workbook</h2>
     </div>
     <div class="card-body">
         <div class="alert alert-secondary" role="note" data-testid="import-format-hint">
@@ -40,7 +40,7 @@
                        accept=".xlsx"
                        class="form-control"
                        data-testid="import-workbook-input" />
-            <div class="form-text">Only one canonical <code>.xlsx</code> workbook is accepted for this validate-only admin flow.</div>
+            <div class="form-text">Only one canonical <code>.xlsx</code> workbook is accepted for this admin flow.</div>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(_selectedFileName))
@@ -48,25 +48,35 @@
             <div class="small text-muted mb-3" data-testid="selected-workbook-name">Selected workbook: @_selectedFileName</div>
         }
 
-        <button type="button"
-                class="btn btn-primary"
-                data-testid="validate-only-button"
-                disabled="@_isRunning"
-                @onclick="RunValidateOnlyAsync">
-            @(_isRunning ? "Validating..." : "Validate only")
-        </button>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button"
+                    class="btn btn-outline-primary"
+                    data-testid="validate-only-button"
+                    disabled="@_isRunning"
+                    @onclick="() => RunImportAsync(ImportBatchRunMode.ValidateOnly)">
+                @GetButtonText(ImportBatchRunMode.ValidateOnly)
+            </button>
+
+            <button type="button"
+                    class="btn btn-primary"
+                    data-testid="validate-and-commit-button"
+                    disabled="@_isRunning"
+                    @onclick="() => RunImportAsync(ImportBatchRunMode.Commit)">
+                @GetButtonText(ImportBatchRunMode.Commit)
+            </button>
+        </div>
     </div>
 </section>
 
 <section class="card shadow-sm mb-4">
     <div class="card-header">
-        <h2 class="h5 mb-0">Latest Validate-Only Result</h2>
+        <h2 class="h5 mb-0">Latest Import Result</h2>
     </div>
     <div class="card-body">
         @if (_lastRun is null)
         {
             <div class="alert alert-info mb-0" role="status" data-testid="latest-import-empty-state">
-                No validate-only workbook run has been started from this page yet.
+                No workbook run has been started from this page yet.
             </div>
         }
         else
@@ -111,7 +121,7 @@
             @if (_lastRun.Batch.Issues.Count == 0)
             {
                 <div class="alert alert-info mb-0" role="status" data-testid="latest-import-issues-empty-state">
-                    No row-level issues were recorded for this validate-only run.
+                    No row-level issues were recorded for this run.
                 </div>
             }
             else
@@ -152,7 +162,7 @@
         @if (_recentBatches.Count == 0)
         {
             <div class="alert alert-info mb-0" role="status" data-testid="import-history-empty-state">
-                No persisted import batches are available yet. Run validate-only on a canonical workbook to create the first audit entry.
+                No persisted import batches are available yet. Run validate-only or validate-and-commit on a canonical workbook to create the first audit entry.
             </div>
         }
         else
@@ -197,6 +207,7 @@
     private string? _selectedFileName;
     private string? _submitErrorMessage;
     private bool _isRunning;
+    private ImportBatchRunMode? _activeRunMode;
     private ImportAdminRunResult? _lastRun;
     private IReadOnlyList<ImportBatchListItemView> _recentBatches = [];
 
@@ -213,40 +224,44 @@
 
         if (!HasWorkbookExtension(_selectedFileName))
         {
-            _submitErrorMessage = "Only canonical .xlsx workbooks are supported for this admin validate-only flow.";
+            _submitErrorMessage = "Only canonical .xlsx workbooks are supported for this admin import flow.";
             _selectedWorkbook = null;
         }
 
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task RunValidateOnlyAsync()
+    private async Task RunImportAsync(ImportBatchRunMode runMode)
     {
         _submitErrorMessage = null;
 
         if (_selectedWorkbook is null || string.IsNullOrWhiteSpace(_selectedFileName))
         {
-            _submitErrorMessage = "Select one canonical .xlsx workbook before running validate only.";
+            _submitErrorMessage = runMode == ImportBatchRunMode.Commit
+                ? "Select one canonical .xlsx workbook before running validate and commit."
+                : "Select one canonical .xlsx workbook before running validate only.";
             return;
         }
 
         if (!HasWorkbookExtension(_selectedFileName))
         {
-            _submitErrorMessage = "Only canonical .xlsx workbooks are supported for this admin validate-only flow.";
+            _submitErrorMessage = "Only canonical .xlsx workbooks are supported for this admin import flow.";
             return;
         }
 
         _isRunning = true;
+        _activeRunMode = runMode;
 
         try
         {
             await using var workbookStream = _selectedWorkbook.OpenReadStream(MaxWorkbookBytes);
             var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var result = await ImportAdminService.ValidateAsync(
-                new ImportAdminValidateRequest(
+            var result = await ImportAdminService.RunAsync(
+                new ImportAdminRunRequest(
                     workbookStream,
                     _selectedFileName,
-                    ResolveExecutedByUserId(authenticationState.User)),
+                    ResolveExecutedByUserId(authenticationState.User),
+                    runMode),
                 authenticationState.User);
 
             if (result.Status == ImportAdminRunStatus.Forbidden)
@@ -257,7 +272,7 @@
 
             if (result.Status == ImportAdminRunStatus.Failed)
             {
-                _submitErrorMessage = result.ErrorMessage ?? "The workbook could not be validated.";
+                _submitErrorMessage = result.ErrorMessage ?? GetDefaultFailureMessage(runMode);
                 return;
             }
 
@@ -274,11 +289,12 @@
         }
         catch (Exception)
         {
-            _submitErrorMessage = "The workbook could not be validated. Refresh the page and try again.";
+            _submitErrorMessage = GetDefaultFailureMessage(runMode);
         }
         finally
         {
             _isRunning = false;
+            _activeRunMode = null;
         }
     }
 
@@ -289,6 +305,21 @@
 
     private static bool HasWorkbookExtension(string fileName) =>
         fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase);
+
+    private string GetButtonText(ImportBatchRunMode runMode)
+    {
+        if (!_isRunning || _activeRunMode != runMode)
+        {
+            return runMode == ImportBatchRunMode.Commit ? "Validate and commit" : "Validate only";
+        }
+
+        return runMode == ImportBatchRunMode.Commit ? "Validating and committing..." : "Validating...";
+    }
+
+    private static string GetDefaultFailureMessage(ImportBatchRunMode runMode) =>
+        runMode == ImportBatchRunMode.Commit
+            ? "The workbook could not be validated and committed. Refresh the page and try again."
+            : "The workbook could not be validated. Refresh the page and try again.";
 
     private static string? ResolveExecutedByUserId(ClaimsPrincipal user) =>
         user.FindFirst(ClaimTypes.NameIdentifier)?.Value

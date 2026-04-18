@@ -72,6 +72,25 @@ public sealed class FacilityLayoutImportServiceTests
     }
 
     [Fact]
+    public async Task Upload_Request_Can_Log_A_Commit_Mode_Batch_When_Validation_Fails()
+    {
+        var logger = new RecordingImportBatchLogger(213);
+        var service = new FacilityLayoutImportService(_workbookReader, _validator, logger);
+        await using var workbookStream = File.OpenRead(GetFixturePath("PHX_BAD_Layout_20260412_invalid_rows.xlsx"));
+
+        var result = await service.ValidateAsync(new FacilityLayoutImportUploadRequest(
+            workbookStream,
+            "PHX_BAD_Layout_20260412_invalid_rows.xlsx",
+            "uploader",
+            ImportBatchRunMode.Commit));
+
+        Assert.False(result.IsValid);
+        Assert.NotNull(result.ImportBatchId);
+        Assert.NotNull(logger.LastRequest);
+        Assert.Equal(ImportBatchRunMode.Commit, logger.LastRequest!.RunMode);
+    }
+
+    [Fact]
     public async Task Invalid_Row_Workbook_Fails_With_Explicit_Row_Level_Errors()
     {
         var service = new FacilityLayoutImportService(_workbookReader, _validator, new RecordingImportBatchLogger(303));

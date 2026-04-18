@@ -8,7 +8,7 @@ namespace KennelTrace.Web.Features.Imports.Admin;
 
 public interface IImportAdminService
 {
-    Task<ImportAdminRunResult> ValidateAsync(ImportAdminValidateRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default);
+    Task<ImportAdminRunResult> RunAsync(ImportAdminRunRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default);
 }
 
 public sealed class ImportAdminService(
@@ -16,7 +16,7 @@ public sealed class ImportAdminService(
     IImportAdminHistoryReadService historyReadService,
     IAuthorizationService authorizationService) : IImportAdminService
 {
-    public async Task<ImportAdminRunResult> ValidateAsync(ImportAdminValidateRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task<ImportAdminRunResult> RunAsync(ImportAdminRunRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.WorkbookStream);
@@ -32,18 +32,18 @@ public sealed class ImportAdminService(
                 request.WorkbookStream,
                 request.SourceFileName,
                 request.ExecutedByUserId,
-                ImportBatchRunMode.ValidateOnly),
+                request.RunMode),
             cancellationToken);
 
         if (importResult.ImportBatchId is null)
         {
-            return ImportAdminRunResult.Failed("The validate-only run did not produce an import batch record.");
+            return ImportAdminRunResult.Failed($"The {GetRunDescription(request.RunMode)} run did not produce an import batch record.");
         }
 
         var batch = await historyReadService.GetBatchAsync(importResult.ImportBatchId.Value, cancellationToken);
         if (batch is null)
         {
-            return ImportAdminRunResult.Failed("The validate-only run completed, but the persisted batch record could not be loaded.");
+            return ImportAdminRunResult.Failed($"The {GetRunDescription(request.RunMode)} run completed, but the persisted batch record could not be loaded.");
         }
 
         var resolvedFacilityDisplay = batch.FacilityDisplay ?? ResolveWorkbookFacilityCode(importResult.Report.Workbook);
@@ -62,12 +62,16 @@ public sealed class ImportAdminService(
 
         return facilityCodes.Count == 1 ? facilityCodes[0] : null;
     }
+
+    private static string GetRunDescription(ImportBatchRunMode runMode) =>
+        runMode == ImportBatchRunMode.Commit ? "validate-and-commit" : "validate-only";
 }
 
-public sealed record ImportAdminValidateRequest(
+public sealed record ImportAdminRunRequest(
     Stream WorkbookStream,
     string SourceFileName,
-    string? ExecutedByUserId);
+    string? ExecutedByUserId,
+    ImportBatchRunMode RunMode);
 
 public sealed record ImportAdminRunResult(
     ImportAdminRunStatus Status,

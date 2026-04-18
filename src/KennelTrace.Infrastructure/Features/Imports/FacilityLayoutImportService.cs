@@ -76,7 +76,7 @@ public sealed class FacilityLayoutImportService
 
         if (request.RunMode == ImportBatchRunMode.Commit && report.IsValid)
         {
-            throw new InvalidOperationException("Stream-based uploads are limited to validate-only mode in the current admin UI slice.");
+            return await CommitAsync(fileRequest, workbook, issues, startedUtc, sourceFileName, sourceFileHash, cancellationToken);
         }
 
         return await LogWithoutCommitAsync(fileRequest, report, issues, startedUtc, sourceFileName, sourceFileHash, cancellationToken);
