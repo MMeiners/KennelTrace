@@ -528,3 +528,23 @@ Commands actually run in this shell for this slice:
 Verification result in this shell:
 
 - `C:\Users\Mark\.dotnet\dotnet.exe test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 72 tests.
+
+## 2026-04-18 11:19:50 -07:00
+
+Implemented a narrow Development-only seed extension so the existing `/trace` page always has one persisted active disease profile available locally without changing non-development startup behavior, trace contracts, or the existing trace logic. `src/KennelTrace.Web/Development/DevelopmentDatabaseSetup.cs` now runs two independent Development bootstrap steps after migrations: the prior `DEV-PHX` facility/map seed remains unchanged in scope, and a new idempotent pilot disease/profile seed ensures disease `PILOT_RESP` plus one active `DiseaseTraceProfile` with the MVP respiratory settings (`72`-hour lookback, same-location/room/adjacency enabled, adjacency depth `1`, topology disabled with no topology-link rows). The seed no longer depends on the old `DEV-PHX` facility existence short-circuit, so developers with an already-seeded local facility still get the missing disease/profile reference data on the next Development startup.
+
+Added focused SQL-backed regression coverage in `tests/KennelTrace.Tests/DevelopmentDatabaseSetupTests.cs` and exposed the internal bootstrap helper to that test assembly via `src/KennelTrace.Web/Properties/AssemblyInfo.cs`. The tests verify two key cases for this slice: rerunning the Development bootstrap remains idempotent with exactly one pilot disease/profile and zero topology-link rows, and the pilot profile is visible through the existing SQL-backed `TracePageReadService` option loader used by `/trace`; plus the historical regression case where `DEV-PHX` already exists but the disease/profile seed still has to be ensured. Updated `README.md` so the documented local Development database behavior now includes the pilot `/trace` disease/profile seed.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests\KennelTrace.Tests\KennelTrace.Tests.csproj --filter "FullyQualifiedName~DevelopmentDatabaseSetupTests"`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+- `git status --short`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed with 0 warnings and 0 errors.
+- `dotnet test tests\KennelTrace.Tests\KennelTrace.Tests.csproj --filter "FullyQualifiedName~DevelopmentDatabaseSetupTests"` passed with 2 tests in the current repository.
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 11:19:50 -07:00`.
+- `git status --short` showed the expected working-tree changes for `README.md`, `src/KennelTrace.Web/Development/DevelopmentDatabaseSetup.cs`, `src/KennelTrace.Web/Properties/AssemblyInfo.cs`, and `tests/KennelTrace.Tests/DevelopmentDatabaseSetupTests.cs`.

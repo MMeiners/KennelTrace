@@ -86,6 +86,7 @@ When `ASPNETCORE_ENVIRONMENT=Development`, the web app now:
 
 - applies pending EF Core migrations automatically at startup
 - seeds one small development-only facility map dataset if facility `DEV-PHX` is not already present
+- ensures one active development-only pilot disease/profile seed for `/trace` if disease `PILOT_RESP` is not already fully present and active
 
 This is only for local development convenience. Production/non-development startup does not auto-migrate or auto-seed.
 
