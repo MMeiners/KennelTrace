@@ -1,3 +1,4 @@
+using KennelTrace.Domain.Common;
 using KennelTrace.Domain.Features.Imports;
 using KennelTrace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -15,13 +16,32 @@ public sealed class ImportAdminHistoryReadService(KennelTraceDbContext dbContext
 {
     public async Task<ImportBatchDetailView?> GetBatchAsync(long importBatchId, CancellationToken cancellationToken = default)
     {
-        var batch = await QueryBatches()
-            .SingleOrDefaultAsync(x => x.ImportBatchId == importBatchId, cancellationToken);
+        var batch = await dbContext.ImportBatches
+            .AsNoTracking()
+            .Where(x => x.ImportBatchId == importBatchId)
+            .Select(x => new ImportBatchQueryRow(
+                x.ImportBatchId,
+                x.BatchType,
+                x.SourceFileName,
+                x.RunMode,
+                x.Status,
+                x.StartedUtc,
+                x.CompletedUtc,
+                x.FacilityId,
+                x.Summary,
+                dbContext.ImportIssues.Count(issue => issue.ImportBatchId == x.ImportBatchId && issue.Severity == ImportIssueSeverity.Error),
+                dbContext.ImportIssues.Count(issue => issue.ImportBatchId == x.ImportBatchId && issue.Severity == ImportIssueSeverity.Warning)))
+            .SingleOrDefaultAsync(cancellationToken);
 
         if (batch is null)
         {
             return null;
         }
+
+        var facilitiesById = await GetFacilitiesByIdAsync(
+            batch.FacilityId is null ? [] : [batch.FacilityId.Value],
+            cancellationToken);
+        var facility = ResolveFacility(batch.FacilityId, facilitiesById);
 
         var issues = await dbContext.ImportIssues
             .AsNoTracking()
@@ -48,8 +68,8 @@ public sealed class ImportAdminHistoryReadService(KennelTraceDbContext dbContext
             batch.StartedUtc,
             batch.CompletedUtc,
             batch.FacilityId,
-            batch.FacilityCode,
-            batch.FacilityName,
+            facility?.FacilityCode.Value,
+            facility?.FacilityName,
             batch.Summary,
             batch.ErrorCount,
             batch.WarningCount,
@@ -59,49 +79,81 @@ public sealed class ImportAdminHistoryReadService(KennelTraceDbContext dbContext
     public async Task<IReadOnlyList<ImportBatchListItemView>> ListRecentBatchesAsync(int take = 15, CancellationToken cancellationToken = default)
     {
         var normalizedTake = Math.Clamp(take, 1, 20);
-
-        return await QueryBatches()
+        var batches = await dbContext.ImportBatches
+            .AsNoTracking()
             .OrderByDescending(x => x.StartedUtc)
             .ThenByDescending(x => x.ImportBatchId)
             .Take(normalizedTake)
-            .Select(x => new ImportBatchListItemView(
-                x.ImportBatchId,
-                x.SourceFileName,
-                x.RunMode,
-                x.Status,
-                x.StartedUtc,
-                x.CompletedUtc,
-                x.FacilityId,
-                x.FacilityCode,
-                x.FacilityName,
-                x.Summary,
-                x.ErrorCount,
-                x.WarningCount))
+            .Select(batch => new ImportBatchQueryRow(
+                batch.ImportBatchId,
+                batch.BatchType,
+                batch.SourceFileName,
+                batch.RunMode,
+                batch.Status,
+                batch.StartedUtc,
+                batch.CompletedUtc,
+                batch.FacilityId,
+                batch.Summary,
+                dbContext.ImportIssues.Count(x => x.ImportBatchId == batch.ImportBatchId && x.Severity == ImportIssueSeverity.Error),
+                dbContext.ImportIssues.Count(x => x.ImportBatchId == batch.ImportBatchId && x.Severity == ImportIssueSeverity.Warning)))
             .ToListAsync(cancellationToken);
+
+        var facilitiesById = await GetFacilitiesByIdAsync(
+            batches.Where(x => x.FacilityId.HasValue).Select(x => x.FacilityId!.Value),
+            cancellationToken);
+
+        return batches
+            .Select(batch =>
+            {
+                var facility = ResolveFacility(batch.FacilityId, facilitiesById);
+
+                return new ImportBatchListItemView(
+                    batch.ImportBatchId,
+                    batch.SourceFileName,
+                    batch.RunMode,
+                    batch.Status,
+                    batch.StartedUtc,
+                    batch.CompletedUtc,
+                    batch.FacilityId,
+                    facility?.FacilityCode.Value,
+                    facility?.FacilityName,
+                    batch.Summary,
+                    batch.ErrorCount,
+                    batch.WarningCount);
+            })
+            .ToList();
     }
 
-    private IQueryable<ImportBatchQueryRow> QueryBatches()
+    private Task<Dictionary<int, FacilitySummaryRow>> GetFacilitiesByIdAsync(
+        IEnumerable<int> facilityIds,
+        CancellationToken cancellationToken)
     {
-        return from batch in dbContext.ImportBatches.AsNoTracking()
-               join facility in dbContext.Facilities.AsNoTracking()
-                   on batch.FacilityId equals facility.FacilityId into facilityJoin
-               from facility in facilityJoin.DefaultIfEmpty()
-               join issue in dbContext.ImportIssues.AsNoTracking()
-                   on batch.ImportBatchId equals issue.ImportBatchId into issues
-               select new ImportBatchQueryRow(
-                   batch.ImportBatchId,
-                   batch.BatchType,
-                   batch.SourceFileName,
-                   batch.RunMode,
-                   batch.Status,
-                   batch.StartedUtc,
-                   batch.CompletedUtc,
-                   batch.FacilityId,
-                   facility != null ? facility.FacilityCode.Value : null,
-                   facility != null ? facility.Name : null,
-                   batch.Summary,
-                   issues.Count(x => x.Severity == ImportIssueSeverity.Error),
-                   issues.Count(x => x.Severity == ImportIssueSeverity.Warning));
+        var ids = facilityIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return Task.FromResult(new Dictionary<int, FacilitySummaryRow>());
+        }
+
+        return dbContext.Facilities
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.FacilityId))
+            .Select(x => new FacilitySummaryRow(
+                x.FacilityId,
+                x.FacilityCode,
+                x.Name))
+            .ToDictionaryAsync(x => x.FacilityId, cancellationToken);
+    }
+
+    private static FacilitySummaryRow? ResolveFacility(
+        int? facilityId,
+        IReadOnlyDictionary<int, FacilitySummaryRow> facilitiesById)
+    {
+        if (!facilityId.HasValue)
+        {
+            return null;
+        }
+
+        return facilitiesById.GetValueOrDefault(facilityId.Value);
     }
 
     private sealed record ImportBatchQueryRow(
@@ -113,11 +165,14 @@ public sealed class ImportAdminHistoryReadService(KennelTraceDbContext dbContext
         DateTime StartedUtc,
         DateTime? CompletedUtc,
         int? FacilityId,
-        string? FacilityCode,
-        string? FacilityName,
         string? Summary,
         int ErrorCount,
         int WarningCount);
+
+    private sealed record FacilitySummaryRow(
+        int FacilityId,
+        FacilityCode FacilityCode,
+        string FacilityName);
 }
 
 public sealed record ImportBatchListItemView(

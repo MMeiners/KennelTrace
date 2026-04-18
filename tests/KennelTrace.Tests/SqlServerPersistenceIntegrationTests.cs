@@ -5,6 +5,7 @@ using KennelTrace.Domain.Features.Imports;
 using KennelTrace.Domain.Features.Locations;
 using KennelTrace.Infrastructure.Features.Imports;
 using KennelTrace.Infrastructure.Persistence;
+using KennelTrace.Web.Features.Imports.Admin;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -288,6 +289,56 @@ public sealed class SqlServerPersistenceIntegrationTests : IAsyncLifetime
         Assert.Equal(firstActiveLinkCount, await context.LocationLinks.CountAsync(x => x.FacilityId == facility.FacilityId && x.IsActive));
         Assert.Equal(1, await context.Facilities.CountAsync(x => x.FacilityCode == new FacilityCode(facilityCode)));
         Assert.Equal(2, await context.ImportBatches.CountAsync());
+    }
+
+    [Fact]
+    public async Task Import_Admin_History_Reads_Batches_And_Facility_Display_From_Sql_Server()
+    {
+        await using var context = CreateContext();
+        var now = new DateTime(2026, 4, 18, 18, 0, 0, DateTimeKind.Utc);
+
+        var facility = new Facility(new FacilityCode("PHX"), "Phoenix Main", "America/Phoenix", now, now);
+        context.Facilities.Add(facility);
+        await context.SaveChangesAsync();
+
+        var batch = new ImportBatch(
+            "FacilityLayout",
+            "PHX_MAIN_Layout_20260418.xlsx",
+            ImportBatchRunMode.ValidateOnly,
+            now,
+            status: ImportBatchStatus.Succeeded,
+            facilityId: facility.FacilityId,
+            executedByUserId: "import-admin",
+            summary: "Validation completed.",
+            completedUtc: now.AddSeconds(5));
+        context.ImportBatches.Add(batch);
+        await context.SaveChangesAsync();
+
+        context.ImportIssues.AddRange(
+            new ImportIssue(batch.ImportBatchId, ImportIssueSeverity.Warning, "Kennels", "Kennel has no grid placement.", 9, "KEN-9"),
+            new ImportIssue(batch.ImportBatchId, ImportIssueSeverity.Error, "Rooms", "RoomCode is required.", 7, "ROOM-7"));
+        await context.SaveChangesAsync();
+
+        var service = new ImportAdminHistoryReadService(context);
+
+        var recentBatches = await service.ListRecentBatchesAsync();
+        var detail = await service.GetBatchAsync(batch.ImportBatchId);
+
+        var listItem = Assert.Single(recentBatches);
+        Assert.Equal(batch.ImportBatchId, listItem.ImportBatchId);
+        Assert.Equal("PHX", listItem.FacilityCode);
+        Assert.Equal("Phoenix Main", listItem.FacilityName);
+        Assert.Equal("Phoenix Main (PHX)", listItem.FacilityDisplay);
+        Assert.Equal(1, listItem.ErrorCount);
+        Assert.Equal(1, listItem.WarningCount);
+
+        Assert.NotNull(detail);
+        Assert.Equal(batch.ImportBatchId, detail.ImportBatchId);
+        Assert.Equal("PHX", detail.FacilityCode);
+        Assert.Equal("Phoenix Main", detail.FacilityName);
+        Assert.Equal(2, detail.Issues.Count);
+        Assert.Contains(detail.Issues, x => x.Severity == ImportIssueSeverity.Error && x.SheetName == "Rooms");
+        Assert.Contains(detail.Issues, x => x.Severity == ImportIssueSeverity.Warning && x.SheetName == "Kennels");
     }
 
     private KennelTraceDbContext CreateContext()
