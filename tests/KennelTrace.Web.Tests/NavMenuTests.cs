@@ -54,9 +54,9 @@ public sealed class NavMenuTests : BunitContext
         Assert.Contains("trace", links);
         Assert.Contains("admin/layout", links);
         Assert.Contains("admin/animals", links);
-        Assert.Contains("counter", links);
-        Assert.Contains("weather", links);
-        Assert.Contains("mudblazor-test", links);
+        Assert.DoesNotContain("counter", links);
+        Assert.DoesNotContain("weather", links);
+        Assert.DoesNotContain("mudblazor-test", links);
     }
 
     [Fact]
@@ -81,6 +81,9 @@ public sealed class NavMenuTests : BunitContext
 
         Assert.DoesNotContain("admin/layout", links);
         Assert.DoesNotContain("admin/animals", links);
+        Assert.DoesNotContain("counter", links);
+        Assert.DoesNotContain("weather", links);
+        Assert.DoesNotContain("mudblazor-test", links);
         Assert.Contains("facility-map", links);
         Assert.Contains("animals", links);
         Assert.Contains("trace", links);

@@ -516,3 +516,15 @@ Verification result in this shell:
 - The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run exceeded the shell timeout before finishing; rerunning the same command with a longer timeout passed with 99 tests.
 - `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 72 tests.
 - `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 99 passing tests, `tests/KennelTrace.Web.Tests` reporting 72 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.
+
+## 2026-04-18 10:20:06 -07:00
+
+Removed the leftover scaffold navigation entries for `Counter`, `Weather`, and `MudBlazor Test` from `src/KennelTrace.Web/Components/Layout/NavMenu.razor`, deleted the corresponding unused Razor pages under `src/KennelTrace.Web/Components/Pages`, and updated `tests/KennelTrace.Web.Tests/NavMenuTests.cs` so the nav assertions reflect the trimmed operational menu.
+
+Commands actually run in this shell for this slice:
+
+- `C:\Users\Mark\.dotnet\dotnet.exe test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+
+Verification result in this shell:
+
+- `C:\Users\Mark\.dotnet\dotnet.exe test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 72 tests.
