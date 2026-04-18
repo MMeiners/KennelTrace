@@ -690,14 +690,35 @@ public sealed class ContactTracePageTests : BunitContext
     {
         public IReadOnlyList<AnimalLookupRow> LookupResults { get; set; } = [];
 
-        public Task<IReadOnlyList<AnimalLookupRow>> LookupAnimalsAsync(string? searchText, CancellationToken cancellationToken = default) =>
-            Task.FromResult(LookupResults);
+        public Task<IReadOnlyList<AnimalLookupRow>> LookupAnimalsAsync(string? searchText, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                return Task.FromResult<IReadOnlyList<AnimalLookupRow>>([]);
+            }
+
+            var normalizedSearchText = searchText.Trim();
+            var results = LookupResults
+                .Where(x =>
+                    x.AnimalNumber.Value.Contains(normalizedSearchText, StringComparison.OrdinalIgnoreCase)
+                    || (!string.IsNullOrWhiteSpace(x.Name)
+                        && x.Name.Contains(normalizedSearchText, StringComparison.OrdinalIgnoreCase))
+                    || FormatAnimalOption(x).Contains(normalizedSearchText, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<AnimalLookupRow>>(results);
+        }
 
         public Task<IReadOnlyList<AnimalMoveLocationOption>> ListMoveLocationsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<AnimalMoveLocationOption>>([]);
 
         public Task<AnimalDetailResult?> GetAnimalDetailAsync(int animalId, CancellationToken cancellationToken = default) =>
             Task.FromResult<AnimalDetailResult?>(null);
+
+        private static string FormatAnimalOption(AnimalLookupRow option) =>
+            string.IsNullOrWhiteSpace(option.Name)
+                ? option.AnimalNumber.Value
+                : $"{option.AnimalNumber.Value} - {option.Name}";
     }
 
     private sealed class FakeContactTraceService : IContactTraceService

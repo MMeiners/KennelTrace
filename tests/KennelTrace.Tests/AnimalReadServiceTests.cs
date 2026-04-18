@@ -76,6 +76,26 @@ public sealed class AnimalReadServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Lookup_Supports_Formatted_Display_Label_Search()
+    {
+        await using var context = CreateContext();
+        var now = Utc(2026, 4, 17, 9);
+
+        context.Animals.AddRange(
+            new Animal(new AnimalCode("A-100"), now, now, name: "Biscuit"),
+            new Animal(new AnimalCode("A-200"), now, now, name: "Scout"));
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+
+        var results = await service.LookupAnimalsAsync("A-100 - Biscuit");
+
+        Assert.Single(results);
+        Assert.Equal("A-100", results[0].AnimalNumber.Value);
+        Assert.Equal("Biscuit", results[0].Name);
+    }
+
+    [Fact]
     public async Task Move_Location_Options_Include_All_Facilities_And_Keep_Inactive_Locations_Visible()
     {
         await using var context = CreateContext();

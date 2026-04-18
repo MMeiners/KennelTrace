@@ -548,3 +548,22 @@ Verification result in this shell:
 - `dotnet test tests\KennelTrace.Tests\KennelTrace.Tests.csproj --filter "FullyQualifiedName~DevelopmentDatabaseSetupTests"` passed with 2 tests in the current repository.
 - `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 11:19:50 -07:00`.
 - `git status --short` showed the expected working-tree changes for `README.md`, `src/KennelTrace.Web/Development/DevelopmentDatabaseSetup.cs`, `src/KennelTrace.Web/Properties/AssemblyInfo.cs`, and `tests/KennelTrace.Tests/DevelopmentDatabaseSetupTests.cs`.
+
+## 2026-04-18 11:45:56 -07:00
+
+Fixed the `/trace` source-animal picker bug where selecting a datalist option like `A-1 - Milo` could still fail validation with "Select a persisted source animal before running a trace." The root cause was a mismatch between the page and the lookup service: the page stored the formatted display label, but `AnimalReadService.LookupAnimalsAsync` only matched raw animal number or raw name, so the next input event could clear the selected persisted animal.
+
+Updated `src/KennelTrace.Infrastructure/Features/Animals/AnimalRecords/AnimalReadService.cs` so lookup matches the same formatted `animal number - name` label used by the UI. Added a focused regression test in `tests/KennelTrace.Tests/AnimalReadServiceTests.cs` and tightened the fake lookup behavior in `tests/KennelTrace.Web.Tests/ContactTracePageTests.cs` so the page tests reflect the real lookup semantics.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter AnimalReadServiceTests`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --filter ContactTracePageTests`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter AnimalReadServiceTests` passed with 8 tests.
+- The first parallel `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --filter ContactTracePageTests` attempt hit a transient `CS2012` file-lock error on `KennelTrace.Domain.dll`; rerunning the same command immediately afterward passed.
+- The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --filter ContactTracePageTests` passed with 22 tests.
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 11:45:56 -07:00`.

@@ -21,9 +21,7 @@ public sealed class AnimalReadService(KennelTraceDbContext dbContext) : IAnimalR
             .ToListAsync(cancellationToken);
 
         return animals
-            .Where(x => x.AnimalNumber.Value.Contains(normalizedSearchText, StringComparison.OrdinalIgnoreCase)
-                        || (!string.IsNullOrWhiteSpace(x.Name)
-                            && x.Name.Contains(normalizedSearchText, StringComparison.OrdinalIgnoreCase)))
+            .Where(x => MatchesSearch(x, normalizedSearchText))
             .OrderByDescending(x => x.IsActive)
             .ThenBy(x => x.AnimalNumber.Value, StringComparer.OrdinalIgnoreCase)
             .ThenBy(x => x.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
@@ -153,6 +151,28 @@ public sealed class AnimalReadService(KennelTraceDbContext dbContext) : IAnimalR
 
         return searchText.Trim();
     }
+
+    private static bool MatchesSearch(Animal animal, string normalizedSearchText)
+    {
+        if (animal.AnimalNumber.Value.Contains(normalizedSearchText, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(animal.Name)
+            && animal.Name.Contains(normalizedSearchText, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var displayLabel = FormatLookupLabel(animal.AnimalNumber.Value, animal.Name);
+        return displayLabel.Contains(normalizedSearchText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatLookupLabel(string animalNumber, string? animalName) =>
+        string.IsNullOrWhiteSpace(animalName)
+            ? animalNumber
+            : $"{animalNumber} - {animalName}";
 
     private static AnimalCurrentPlacementSummary BuildCurrentPlacementSummary(
         MovementHistoryRowData movement,
