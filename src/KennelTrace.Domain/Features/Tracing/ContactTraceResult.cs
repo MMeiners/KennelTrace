@@ -8,13 +8,15 @@ public sealed class ContactTraceResult
         int diseaseTraceProfileId,
         IEnumerable<long> sourceStayIds,
         IEnumerable<ImpactedLocationResult> impactedLocations,
-        IEnumerable<ImpactedAnimalResult> impactedAnimals)
+        IEnumerable<ImpactedAnimalResult> impactedAnimals,
+        bool usesPartialGraphData = false)
     {
         DiseaseTraceProfileId = Guard.Positive(diseaseTraceProfileId, nameof(diseaseTraceProfileId));
 
         SourceStayIds = NormalizePositiveIds(sourceStayIds, nameof(sourceStayIds));
         ImpactedLocations = NormalizeRequiredList(impactedLocations, nameof(impactedLocations));
         ImpactedAnimals = NormalizeRequiredList(impactedAnimals, nameof(impactedAnimals));
+        UsesPartialGraphData = usesPartialGraphData;
     }
 
     public int DiseaseTraceProfileId { get; }
@@ -24,6 +26,8 @@ public sealed class ContactTraceResult
     public IReadOnlyList<ImpactedLocationResult> ImpactedLocations { get; }
 
     public IReadOnlyList<ImpactedAnimalResult> ImpactedAnimals { get; }
+
+    public bool UsesPartialGraphData { get; }
 
     private static IReadOnlyList<T> NormalizeRequiredList<T>(IEnumerable<T> values, string paramName)
     {

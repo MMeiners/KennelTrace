@@ -474,3 +474,22 @@ Verification result in this shell:
 - The second `dotnet build KennelTrace.sln` passed with one transient `MSB3026` retry warning while copying `KennelTrace.Web.exe`, then completed successfully.
 - The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed in two bUnit cases because the initial tab-activation helper looked for generic `button` elements instead of MudBlazor tab headers with `role="tab"`.
 - The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 61 tests.
+
+## 2026-04-18 09:28:01 -07:00
+
+Implemented Step 11D for the `/trace` result view. `src/KennelTrace.Web/Components/Pages/ContactTrace.razor` now adds the third `Why Included` tab and keeps it table-first and operations-focused: it flattens impacted locations and impacted animals into one cohesive explainability view, shows one human-readable explanation row per inclusion reason, and reuses the centralized presenter so chip labels and explanation text come from one mapping source. The page also now renders the documented partial-data caveat with a `MudAlert` when the trace result exposes partial-graph warning metadata, while keeping the warning text honest: results reflect only stored relationships.
+
+Extended the trace contracts and presenter just enough to support the UI without changing trace semantics. `ImpactedLocationResult` now carries optional full `ImpactedLocationReason` metadata when the backend has it, `ContactTraceResult` can expose `UsesPartialGraphData`, and the EF-backed `ContactTraceService` now passes through full impacted-location reasons plus a narrow partial-graph flag for unresolved kennel-to-room context cases the current graph load can actually detect. Added focused bUnit coverage in `tests/KennelTrace.Web.Tests/ContactTracePageTests.cs` for human-readable explanation text, multi-reason rendering in the explainability tab, partial-data warning rendering, and the new empty state behavior.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed with 0 warnings and 0 errors.
+- The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed in one existing Step 11C assertion because the default fake location result fixture started deriving primary location metadata from the richer Step 11D reason list. The fixture was narrowed back to the older Step 11C summary/table shape, and the dedicated 11D tests now use a separate explainability-focused fake result.
+- The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 64 tests.

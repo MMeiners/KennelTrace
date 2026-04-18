@@ -20,6 +20,7 @@ public sealed class ContactTraceService(KennelTraceDbContext dbContext) : IConta
         var seedAnimalId = ResolveSeedAnimalId(sourceStays);
         var expansionSettings = ImpactedLocationExpansionSettings.FromProfile(profile);
         var traceGraphSnapshot = await LoadTraceGraphSnapshotAsync(sourceStays, expansionSettings, cancellationToken);
+        var usesPartialGraphData = DetectPartialGraphData(traceGraphSnapshot, expansionSettings, sourceStays);
 
         var expandedImpactedLocations = LocationGraphExpander.Expand(new ImpactedLocationExpansionRequest(
             expansionSettings,
@@ -61,7 +62,8 @@ public sealed class ContactTraceService(KennelTraceDbContext dbContext) : IConta
             profile.DiseaseTraceProfileId,
             sourceStays.Select(x => x.StayId),
             impactedLocations,
-            impactedAnimals);
+            impactedAnimals,
+            usesPartialGraphData);
     }
 
     private async Task<DiseaseTraceProfile> ResolveActiveProfileAsync(int diseaseTraceProfileId, CancellationToken cancellationToken)
@@ -505,7 +507,60 @@ public sealed class ContactTraceService(KennelTraceDbContext dbContext) : IConta
             primaryReason.MatchKind,
             primaryReason.ScopeLocationId,
             primaryReason.TraversalDepth,
-            primaryReason.ViaLinkType);
+            primaryReason.ViaLinkType,
+            expandedLocation.Reasons);
+    }
+
+    private static bool DetectPartialGraphData(
+        TraceGraphSnapshot snapshot,
+        ImpactedLocationExpansionSettings settings,
+        IReadOnlyList<SourceStayRow> sourceStays)
+    {
+        if (!settings.IncludeSameRoom && !settings.HasTopologyTraversal)
+        {
+            return false;
+        }
+
+        var locationsById = snapshot.Locations.ToDictionary(x => x.LocationId);
+
+        return sourceStays.Any(sourceStay => RequiresResolvedRoomContext(
+            sourceStay.LocationId,
+            locationsById,
+            settings));
+    }
+
+    private static bool RequiresResolvedRoomContext(
+        int sourceLocationId,
+        IReadOnlyDictionary<int, TraceGraphLocation> locationsById,
+        ImpactedLocationExpansionSettings settings)
+    {
+        if (!locationsById.TryGetValue(sourceLocationId, out var sourceLocation))
+        {
+            return true;
+        }
+
+        if (LocationTypeRules.IsRoomLike(sourceLocation.LocationType))
+        {
+            return false;
+        }
+
+        if (!settings.IncludeSameRoom && !settings.HasTopologyTraversal)
+        {
+            return false;
+        }
+
+        if (sourceLocation.LocationType != LocationType.Kennel)
+        {
+            return false;
+        }
+
+        if (sourceLocation.ParentLocationId is null)
+        {
+            return true;
+        }
+
+        return !locationsById.TryGetValue(sourceLocation.ParentLocationId.Value, out var parentLocation)
+            || !LocationTypeRules.IsRoomLike(parentLocation.LocationType);
     }
 
     private static DateTime NormalizeUtc(DateTime value) =>

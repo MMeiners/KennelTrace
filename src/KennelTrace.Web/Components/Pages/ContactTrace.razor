@@ -217,6 +217,13 @@
                 </MudAlert>
             }
 
+            @if (_traceResult?.UsesPartialGraphData == true)
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-testid="trace-partial-graph-warning">
+                    This trace used partial graph data; results reflect only stored relationships.
+                </MudAlert>
+            }
+
             <MudTabs Rounded="true" data-testid="trace-result-tabs">
                 <MudTabPanel Text="Impacted Locations">
                     @if (_traceResult is null || _traceResult.ImpactedLocations.Count == 0)
@@ -349,6 +356,56 @@
                                             </MudChip>
                                         }
                                     </MudChipSet>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudTabPanel>
+                <MudTabPanel Text="Why Included">
+                    @{
+                        var whyIncludedRows = GetWhyIncludedRows();
+                    }
+                    @if (whyIncludedRows.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-why-included-empty-state">
+                            No explainability details are available because this trace returned no impacted locations or animals.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudTable Items="whyIncludedRows" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" data-testid="trace-why-included-table">
+                            <HeaderContent>
+                                <MudTh>Included</MudTh>
+                                <MudTh>Reason</MudTh>
+                                <MudTh>Why</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Included">
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Variant="Variant.Outlined"
+                                             Class="mb-1">
+                                        @context.SubjectKindLabel
+                                    </MudChip>
+                                    <MudText Typo="Typo.body1" data-testid="@($"trace-why-included-subject-{context.TestId}")">
+                                        @context.SubjectPrimaryLabel
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="text-muted">
+                                        @context.SubjectSecondaryLabel
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Reason">
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Variant="Variant.Outlined"
+                                             data-testid="@($"trace-why-included-reason-{context.TestId}")">
+                                        @context.ReasonLabel
+                                    </MudChip>
+                                </MudTd>
+                                <MudTd DataLabel="Why">
+                                    <MudText Typo="Typo.body2" data-testid="@($"trace-why-included-explanation-{context.TestId}")">
+                                        @context.Explanation
+                                    </MudText>
                                 </MudTd>
                             </RowTemplate>
                         </MudTable>
@@ -673,6 +730,141 @@
             ? animal.AnimalNumber.Value
             : $"{animal.AnimalNumber.Value} - {animal.AnimalName}";
 
+    private IReadOnlyList<TraceWhyIncludedRow> GetWhyIncludedRows()
+    {
+        if (_traceResult is null)
+        {
+            return [];
+        }
+
+        return _traceResult.ImpactedLocations
+            .SelectMany(BuildLocationWhyIncludedRows)
+            .Concat(_traceResult.ImpactedAnimals.SelectMany(BuildAnimalWhyIncludedRows))
+            .OrderBy(x => x.SubjectSortOrder)
+            .ThenBy(x => x.SubjectPrimaryLabel, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.ReasonLabel, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.TestId, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private IReadOnlyList<TraceWhyIncludedRow> BuildLocationWhyIncludedRows(ImpactedLocationResult location)
+    {
+        var locationOption = GetLocationOption(location.LocationId);
+        var impactedLocationLabel = GetLocationPrimaryLabel(locationOption, location.LocationId);
+        var subjectSecondaryLabel = GetLocationSecondaryLabel(locationOption);
+
+        if (location.Reasons.Count > 0)
+        {
+            return location.Reasons
+                .Select(reason => CreateLocationWhyIncludedRow(
+                    location.LocationId,
+                    impactedLocationLabel,
+                    subjectSecondaryLabel,
+                    reason))
+                .ToArray();
+        }
+
+        return location.ReasonCodes
+            .Select(reasonCode => new TraceWhyIncludedRow(
+                SubjectKindLabel: "Location",
+                SubjectSortOrder: 0,
+                SubjectPrimaryLabel: impactedLocationLabel,
+                SubjectSecondaryLabel: subjectSecondaryLabel,
+                ReasonLabel: TraceResultPresenter.GetReasonLabel(reasonCode),
+                Explanation: TraceResultPresenter.GetFallbackLocationReasonExplanation(reasonCode, impactedLocationLabel),
+                TestId: BuildWhyIncludedTestId("location", location.LocationId, reasonCode)))
+            .ToArray();
+    }
+
+    private TraceWhyIncludedRow CreateLocationWhyIncludedRow(
+        int locationId,
+        string impactedLocationLabel,
+        string subjectSecondaryLabel,
+        ImpactedLocationReason reason)
+    {
+        var sourceLocationLabel = GetLocationPrimaryLabel(GetLocationOption(reason.SourceLocationId), reason.SourceLocationId);
+        var scopeLocationLabel = reason.ScopeLocationId is null
+            ? null
+            : GetLocationPrimaryLabel(GetLocationOption(reason.ScopeLocationId.Value), reason.ScopeLocationId.Value);
+
+        return new TraceWhyIncludedRow(
+            SubjectKindLabel: "Location",
+            SubjectSortOrder: 0,
+            SubjectPrimaryLabel: impactedLocationLabel,
+            SubjectSecondaryLabel: subjectSecondaryLabel,
+            ReasonLabel: TraceResultPresenter.GetReasonLabel(reason.ReasonCode),
+            Explanation: TraceResultPresenter.GetLocationReasonExplanation(
+                reason,
+                impactedLocationLabel,
+                sourceLocationLabel,
+                scopeLocationLabel),
+            TestId: BuildWhyIncludedTestId("location", locationId, reason.ReasonCode, reason.SourceStayId));
+    }
+
+    private IReadOnlyList<TraceWhyIncludedRow> BuildAnimalWhyIncludedRows(ImpactedAnimalResult animal)
+    {
+        var impactedLocationOption = GetLocationOption(animal.ImpactedLocationId);
+        var impactedLocationLabel = GetLocationPrimaryLabel(impactedLocationOption, animal.ImpactedLocationId);
+        var subjectPrimaryLabel = GetAnimalPrimaryLabel(animal);
+        var subjectSecondaryLabel = GetAnimalWhyIncludedSecondaryLabel(impactedLocationLabel, animal.OverlappingStays.Count);
+
+        return animal.Reasons.Count > 0
+            ? animal.Reasons
+                .Select(reason => CreateAnimalWhyIncludedRow(
+                    animal.AnimalId,
+                    subjectPrimaryLabel,
+                    subjectSecondaryLabel,
+                    impactedLocationLabel,
+                    reason))
+                .ToArray()
+            : animal.ReasonCodes
+                .Select(reasonCode => new TraceWhyIncludedRow(
+                    SubjectKindLabel: "Animal",
+                    SubjectSortOrder: 1,
+                    SubjectPrimaryLabel: subjectPrimaryLabel,
+                    SubjectSecondaryLabel: subjectSecondaryLabel,
+                    ReasonLabel: TraceResultPresenter.GetReasonLabel(reasonCode),
+                    Explanation: TraceResultPresenter.GetFallbackAnimalReasonExplanation(reasonCode, impactedLocationLabel),
+                    TestId: BuildWhyIncludedTestId("animal", animal.AnimalId, reasonCode)))
+                .ToArray();
+    }
+
+    private TraceWhyIncludedRow CreateAnimalWhyIncludedRow(
+        int animalId,
+        string subjectPrimaryLabel,
+        string subjectSecondaryLabel,
+        string impactedLocationLabel,
+        ImpactedLocationReason reason)
+    {
+        var sourceLocationLabel = GetLocationPrimaryLabel(GetLocationOption(reason.SourceLocationId), reason.SourceLocationId);
+        var scopeLocationLabel = reason.ScopeLocationId is null
+            ? null
+            : GetLocationPrimaryLabel(GetLocationOption(reason.ScopeLocationId.Value), reason.ScopeLocationId.Value);
+
+        return new TraceWhyIncludedRow(
+            SubjectKindLabel: "Animal",
+            SubjectSortOrder: 1,
+            SubjectPrimaryLabel: subjectPrimaryLabel,
+            SubjectSecondaryLabel: subjectSecondaryLabel,
+            ReasonLabel: TraceResultPresenter.GetReasonLabel(reason.ReasonCode),
+            Explanation: TraceResultPresenter.GetAnimalReasonExplanation(
+                reason,
+                impactedLocationLabel,
+                sourceLocationLabel,
+                scopeLocationLabel),
+            TestId: BuildWhyIncludedTestId("animal", animalId, reason.ReasonCode, reason.SourceStayId));
+    }
+
+    private static string GetAnimalWhyIncludedSecondaryLabel(string impactedLocationLabel, int overlappingStayCount) =>
+        $"Impacted at {impactedLocationLabel}. {overlappingStayCount} overlapping stay(s) matched this trace window.";
+
+    private static string BuildWhyIncludedTestId(
+        string subjectPrefix,
+        int subjectId,
+        TraceReasonCode reasonCode,
+        long? sourceStayId = null) =>
+        $"{subjectPrefix}-{subjectId}-{reasonCode}-{sourceStayId ?? 0}";
+
     private RenderFragment RenderFieldError(string fieldName) => builder =>
     {
         if (!_fieldErrors.TryGetValue(fieldName, out var messages))
@@ -701,4 +893,13 @@
         int SourceStayCount,
         int ImpactedLocationCount,
         int ImpactedAnimalCount);
+
+    private sealed record TraceWhyIncludedRow(
+        string SubjectKindLabel,
+        int SubjectSortOrder,
+        string SubjectPrimaryLabel,
+        string SubjectSecondaryLabel,
+        string ReasonLabel,
+        string Explanation,
+        string TestId);
 }

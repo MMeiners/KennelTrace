@@ -11,14 +11,28 @@ public sealed class ImpactedLocationResult
         ImpactedLocationMatchKind matchKind = ImpactedLocationMatchKind.ExactLocation,
         int? scopeLocationId = null,
         int traversalDepth = 0,
-        LinkType? viaLinkType = null)
+        LinkType? viaLinkType = null,
+        IEnumerable<ImpactedLocationReason>? reasons = null)
     {
         LocationId = Guard.Positive(locationId, nameof(locationId));
+        ReasonCodes = NormalizeReasonCodes(reasonCodes);
+        Reasons = NormalizeReasons(reasons);
+
+        if (Reasons.Count > 0)
+        {
+            var primaryReason = Reasons[0];
+            MatchKind = primaryReason.MatchKind;
+            ScopeLocationId = ValidateScopeLocationId(primaryReason.ScopeLocationId, primaryReason.MatchKind, locationId);
+            TraversalDepth = Guard.NonNegative(primaryReason.TraversalDepth, nameof(traversalDepth));
+            ViaLinkType = primaryReason.ViaLinkType;
+            ValidateReasonCoverage(ReasonCodes, Reasons);
+            return;
+        }
+
         MatchKind = matchKind;
         ScopeLocationId = ValidateScopeLocationId(scopeLocationId, matchKind, locationId);
         TraversalDepth = Guard.NonNegative(traversalDepth, nameof(traversalDepth));
         ViaLinkType = viaLinkType;
-        ReasonCodes = NormalizeReasonCodes(reasonCodes);
     }
 
     public int LocationId { get; }
@@ -32,6 +46,8 @@ public sealed class ImpactedLocationResult
     public LinkType? ViaLinkType { get; }
 
     public IReadOnlyList<TraceReasonCode> ReasonCodes { get; }
+
+    public IReadOnlyList<ImpactedLocationReason> Reasons { get; }
 
     private static int? ValidateScopeLocationId(int? scopeLocationId, ImpactedLocationMatchKind matchKind, int locationId)
     {
@@ -51,5 +67,43 @@ public sealed class ImpactedLocationResult
         var normalized = reasonCodes?.Distinct().ToArray() ?? throw new DomainValidationException("reasonCodes is required.");
         Guard.Against(normalized.Length == 0, "Impacted results must include at least one trace reason.");
         return normalized;
+    }
+
+    private static IReadOnlyList<ImpactedLocationReason> NormalizeReasons(IEnumerable<ImpactedLocationReason>? reasons)
+    {
+        var normalized = reasons?.ToArray() ?? [];
+
+        return normalized
+            .GroupBy(x => new
+            {
+                x.ReasonCode,
+                x.SourceLocationId,
+                x.SourceStayId,
+                x.MatchKind,
+                x.ScopeLocationId,
+                x.ViaLinkType,
+                x.TraversalDepth
+            })
+            .Select(x => x.First())
+            .OrderBy(x => x.ReasonCode)
+            .ThenBy(x => x.MatchKind)
+            .ThenBy(x => x.ScopeLocationId)
+            .ThenBy(x => x.TraversalDepth)
+            .ThenBy(x => x.ViaLinkType)
+            .ThenBy(x => x.SourceLocationId)
+            .ThenBy(x => x.SourceStayId)
+            .ToArray();
+    }
+
+    private static void ValidateReasonCoverage(
+        IReadOnlyCollection<TraceReasonCode> reasonCodes,
+        IReadOnlyCollection<ImpactedLocationReason> reasons)
+    {
+        var reasonCodeSet = reasonCodes.ToHashSet();
+        var metadataReasonCodeSet = reasons.Select(x => x.ReasonCode).ToHashSet();
+
+        Guard.Against(
+            !reasonCodeSet.SetEquals(metadataReasonCodeSet),
+            "reasonCodes must match the supplied impacted-location reason metadata.");
     }
 }

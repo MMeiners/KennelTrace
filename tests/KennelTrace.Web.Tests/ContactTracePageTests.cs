@@ -53,6 +53,7 @@ public sealed class ContactTracePageTests : BunitContext
         [
             new TraceLocationScopeOption(101, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("ROOM-A"), "Room A", LocationType.Room),
             new TraceLocationScopeOption(102, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("KEN-1"), "Kennel 1", LocationType.Kennel),
+            new TraceLocationScopeOption(103, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("KEN-2"), "Kennel 2", LocationType.Kennel),
             new TraceLocationScopeOption(201, 34, new FacilityCode("TUC"), "Tucson Shelter", new LocationCode("ISO-1"), "Isolation 1", LocationType.Isolation)
         ];
         _animalReadService.LookupResults =
@@ -264,7 +265,7 @@ public sealed class ContactTracePageTests : BunitContext
             Assert.Contains("1 source stay(s), 2 impacted location(s), 1 impacted animal(s).", summary);
             Assert.NotNull(cut.Find("[data-testid='trace-locations-table']"));
             Assert.NotNull(cut.Find("[data-testid='trace-result-tabs']"));
-            Assert.DoesNotContain("Why Included", cut.Markup);
+            Assert.Contains("Why Included", cut.Markup);
         });
     }
 
@@ -290,6 +291,9 @@ public sealed class ContactTracePageTests : BunitContext
 
         ActivateTab(cut, "Impacted Animals");
         Assert.Contains("No impacted animals were returned for this trace.", cut.Find("[data-testid='trace-animals-empty-state']").TextContent);
+
+        ActivateTab(cut, "Why Included");
+        Assert.Contains("No explainability details are available because this trace returned no impacted locations or animals.", cut.Find("[data-testid='trace-why-included-empty-state']").TextContent);
     }
 
     [Fact]
@@ -371,6 +375,80 @@ public sealed class ContactTracePageTests : BunitContext
         });
     }
 
+    [Fact]
+    public void Why_Included_Tab_Renders_Human_Readable_Explanations_For_Locations_And_Animals()
+    {
+        SetReadOnlyUser();
+        _contactTraceService.Result = CreateExplainabilityResult();
+
+        var cut = Render<ContactTrace>();
+        SelectProfileAndAnimal(cut);
+        cut.Find("[data-testid='trace-window-start']").Input("2026-04-16T00:00");
+        cut.Find("[data-testid='trace-window-end']").Input("2026-04-17T00:00");
+
+        cut.Find("[data-testid='trace-run-button']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            ActivateTab(cut, "Why Included");
+
+            var whyIncludedTable = cut.Find("[data-testid='trace-why-included-table']").TextContent;
+            Assert.Contains("Kennel 2 (KEN-2)", whyIncludedTable);
+            Assert.Contains("A-77 - Luna", whyIncludedTable);
+            Assert.Contains(
+                "Included because Kennel 2 (KEN-2) is inside Room A (ROOM-A), the same room as the source location Kennel 1 (KEN-1).",
+                cut.Find("[data-testid='trace-why-included-explanation-location-103-SameRoom-9001']").TextContent);
+            Assert.Contains(
+                "Included because this animal overlapped in Kennel 2 (KEN-2), which is adjacent right to the source location Kennel 1 (KEN-1).",
+                cut.Find("[data-testid='trace-why-included-explanation-animal-77-Adjacent-9001']").TextContent);
+            Assert.DoesNotContain("SameRoom", whyIncludedTable);
+            Assert.DoesNotContain("AdjacentRight", whyIncludedTable);
+        });
+    }
+
+    [Fact]
+    public void Why_Included_Tab_Renders_All_Reasons_For_A_Multi_Reason_Result()
+    {
+        SetReadOnlyUser();
+        _contactTraceService.Result = CreateExplainabilityResult();
+
+        var cut = Render<ContactTrace>();
+        SelectProfileAndAnimal(cut);
+        cut.Find("[data-testid='trace-window-start']").Input("2026-04-16T00:00");
+        cut.Find("[data-testid='trace-window-end']").Input("2026-04-17T00:00");
+
+        cut.Find("[data-testid='trace-run-button']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            ActivateTab(cut, "Why Included");
+
+            Assert.NotNull(cut.Find("[data-testid='trace-why-included-reason-location-103-SameRoom-9001']"));
+            Assert.NotNull(cut.Find("[data-testid='trace-why-included-reason-location-103-Adjacent-9001']"));
+            Assert.NotNull(cut.Find("[data-testid='trace-why-included-reason-animal-77-SameRoom-9001']"));
+            Assert.NotNull(cut.Find("[data-testid='trace-why-included-reason-animal-77-Adjacent-9001']"));
+        });
+    }
+
+    [Fact]
+    public void Partial_Graph_Warning_Is_Rendered_When_Result_Exposes_It()
+    {
+        SetReadOnlyUser();
+        _contactTraceService.Result = CreateExplainabilityResult(usesPartialGraphData: true);
+
+        var cut = Render<ContactTrace>();
+        SelectProfileAndAnimal(cut);
+        cut.Find("[data-testid='trace-window-start']").Input("2026-04-16T00:00");
+        cut.Find("[data-testid='trace-window-end']").Input("2026-04-17T00:00");
+
+        cut.Find("[data-testid='trace-run-button']").Click();
+
+        cut.WaitForAssertion(() =>
+            Assert.Contains(
+                "This trace used partial graph data; results reflect only stored relationships.",
+                cut.Find("[data-testid='trace-partial-graph-warning']").TextContent));
+    }
+
     private void SetReadOnlyUser() =>
         _authenticationStateProvider.SetUser("readonly-user", KennelTraceRoles.ReadOnly);
 
@@ -434,6 +512,51 @@ public sealed class ContactTracePageTests : BunitContext
             [
                 new ImpactedAnimalResult(77, new AnimalCode("A-77"), "Luna", 101, [overlap], [sameLocationReason, adjacentReason])
             ]);
+    }
+
+    private static ContactTraceResult CreateExplainabilityResult(bool usesPartialGraphData = false)
+    {
+        var overlap = new ImpactedAnimalStayOverlap(
+            sourceStayId: 9001,
+            sourceLocationId: 102,
+            sourceStartUtc: new DateTime(2026, 4, 16, 0, 0, 0, DateTimeKind.Utc),
+            sourceEndUtc: new DateTime(2026, 4, 17, 0, 0, 0, DateTimeKind.Utc),
+            overlappingStayId: 9101,
+            stayLocationId: 103,
+            stayStartUtc: new DateTime(2026, 4, 16, 6, 0, 0, DateTimeKind.Utc),
+            stayEndUtc: new DateTime(2026, 4, 16, 18, 0, 0, DateTimeKind.Utc),
+            overlapStartUtc: new DateTime(2026, 4, 16, 6, 0, 0, DateTimeKind.Utc),
+            overlapEndUtc: new DateTime(2026, 4, 16, 18, 0, 0, DateTimeKind.Utc));
+
+        var sameRoomReason = new ImpactedLocationReason(
+            TraceReasonCode.SameRoom,
+            sourceLocationId: 102,
+            sourceStayId: 9001,
+            matchKind: ImpactedLocationMatchKind.ScopedLocation,
+            scopeLocationId: 101);
+
+        var adjacentReason = new ImpactedLocationReason(
+            TraceReasonCode.Adjacent,
+            sourceLocationId: 102,
+            sourceStayId: 9001,
+            traversalDepth: 1,
+            viaLinkType: LinkType.AdjacentRight);
+
+        return new ContactTraceResult(
+            diseaseTraceProfileId: 41,
+            sourceStayIds: [9001],
+            impactedLocations:
+            [
+                new ImpactedLocationResult(
+                    locationId: 103,
+                    reasonCodes: [TraceReasonCode.SameRoom, TraceReasonCode.Adjacent],
+                    reasons: [sameRoomReason, adjacentReason])
+            ],
+            impactedAnimals:
+            [
+                new ImpactedAnimalResult(77, new AnimalCode("A-77"), "Luna", 103, [overlap], [sameRoomReason, adjacentReason])
+            ],
+            usesPartialGraphData: usesPartialGraphData);
     }
 
     private sealed class FakeAnimalReadService : IAnimalReadService

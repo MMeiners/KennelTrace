@@ -74,13 +74,26 @@ public sealed class ContactTraceContractsTests
     [Fact]
     public void Impacted_Results_Require_Reasons_And_Support_Scoped_Metadata()
     {
+        var locationReasons = new[]
+        {
+            new ImpactedLocationReason(
+                TraceReasonCode.SameRoom,
+                sourceLocationId: 80,
+                sourceStayId: 5001,
+                matchKind: ImpactedLocationMatchKind.ScopedLocation,
+                scopeLocationId: 80),
+            new ImpactedLocationReason(
+                TraceReasonCode.AirflowLinked,
+                sourceLocationId: 80,
+                sourceStayId: 5001,
+                traversalDepth: 1,
+                viaLinkType: LinkType.Airflow)
+        };
+
         var location = new ImpactedLocationResult(
             locationId: 100,
-            matchKind: ImpactedLocationMatchKind.ScopedLocation,
-            scopeLocationId: 80,
-            traversalDepth: 1,
-            viaLinkType: LinkType.Airflow,
-            reasonCodes: [TraceReasonCode.SameRoom, TraceReasonCode.AirflowLinked]);
+            reasonCodes: [TraceReasonCode.SameRoom, TraceReasonCode.AirflowLinked],
+            reasons: locationReasons);
 
         var animal = new ImpactedAnimalResult(
             animalId: 12,
@@ -112,27 +125,14 @@ public sealed class ContactTraceContractsTests
                     overlapStartUtc: new DateTime(2026, 4, 10, 10, 30, 0, DateTimeKind.Utc),
                     overlapEndUtc: new DateTime(2026, 4, 10, 11, 0, 0, DateTimeKind.Utc))
             ],
-            reasons:
-            [
-                new ImpactedLocationReason(
-                    TraceReasonCode.SameRoom,
-                    sourceLocationId: 80,
-                    sourceStayId: 5001,
-                    matchKind: ImpactedLocationMatchKind.ScopedLocation,
-                    scopeLocationId: 80),
-                new ImpactedLocationReason(
-                    TraceReasonCode.AirflowLinked,
-                    sourceLocationId: 80,
-                    sourceStayId: 5001,
-                    traversalDepth: 1,
-                    viaLinkType: LinkType.Airflow)
-            ]);
+            reasons: locationReasons);
 
         var missingReasons = Assert.Throws<DomainValidationException>(() =>
             new ImpactedLocationResult(locationId: 100, reasonCodes: []));
 
         Assert.Equal(ImpactedLocationMatchKind.ScopedLocation, location.MatchKind);
         Assert.Equal(80, location.ScopeLocationId);
+        Assert.Equal(2, location.Reasons.Count);
         Assert.Equal(2, animal.OverlappingStayIds.Count);
         Assert.Equal("A-012", animal.AnimalSortNumber);
         Assert.Equal("Biscuit", animal.AnimalSortName);
@@ -180,11 +180,13 @@ public sealed class ContactTraceContractsTests
                             sourceLocationId: 11,
                             sourceStayId: 300)
                     ])
-            ]);
+            ],
+            usesPartialGraphData: true);
 
         Assert.Equal([300L, 301L], result.SourceStayIds);
         Assert.Single(result.ImpactedLocations);
         Assert.Single(result.ImpactedAnimals);
+        Assert.True(result.UsesPartialGraphData);
     }
 
     [Fact]
