@@ -51,16 +51,32 @@ public sealed class ContactTracePageTests : BunitContext
         ];
         _tracePageReadService.ScopeOptions =
         [
-            new TraceLocationScopeOption(101, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("ROOM-A"), "Room A", LocationType.Room),
-            new TraceLocationScopeOption(102, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("KEN-1"), "Kennel 1", LocationType.Kennel),
-            new TraceLocationScopeOption(103, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("KEN-2"), "Kennel 2", LocationType.Kennel),
-            new TraceLocationScopeOption(201, 34, new FacilityCode("TUC"), "Tucson Shelter", new LocationCode("ISO-1"), "Isolation 1", LocationType.Isolation)
+            new TraceLocationScopeOption(101, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("ROOM-A"), "Room A", LocationType.Room, true, 101, new LocationCode("ROOM-A"), "Room A", LocationType.Room),
+            new TraceLocationScopeOption(102, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("KEN-1"), "Kennel 1", LocationType.Kennel, true, 101, new LocationCode("ROOM-A"), "Room A", LocationType.Room),
+            new TraceLocationScopeOption(103, 12, new FacilityCode("PHX"), "Phoenix Shelter", new LocationCode("KEN-2"), "Kennel 2", LocationType.Kennel, true, 101, new LocationCode("ROOM-A"), "Room A", LocationType.Room),
+            new TraceLocationScopeOption(201, 34, new FacilityCode("TUC"), "Tucson Shelter", new LocationCode("ISO-1"), "Isolation 1", LocationType.Isolation, true, 201, new LocationCode("ISO-1"), "Isolation 1", LocationType.Isolation)
         ];
         _animalReadService.LookupResults =
         [
             new AnimalLookupRow(1, new AnimalCode("A-1"), "Milo", "Dog", true),
             new AnimalLookupRow(2, new AnimalCode("A-2"), null, "Dog", true)
         ];
+        _tracePageReadService.SourceAnimalsById[1] = new AnimalLookupRow(1, new AnimalCode("A-1"), "Milo", "Dog", true);
+        _tracePageReadService.SourceAnimalsById[2] = new AnimalLookupRow(2, new AnimalCode("A-2"), null, "Dog", true);
+        _tracePageReadService.SourceStaysById[9001] = CreateSourceStaySummary();
+        _tracePageReadService.ScopeSummariesById[999] = new TraceLocationScopeOption(
+            999,
+            34,
+            new FacilityCode("TUC"),
+            "Tucson Shelter",
+            new LocationCode("KEN-9"),
+            "Retired Kennel",
+            LocationType.Kennel,
+            false,
+            201,
+            new LocationCode("ISO-1"),
+            "Isolation 1",
+            LocationType.Isolation);
     }
 
     [Fact]
@@ -132,7 +148,7 @@ public sealed class ContactTracePageTests : BunitContext
         Assert.Contains("Canine Influenza (CIV)", cut.Find("[data-testid='trace-disease-select']").InnerHtml);
         Assert.Contains("Phoenix Shelter (PHX)", cut.Find("[data-testid='trace-scope-facility-select']").InnerHtml);
         Assert.Contains("Room A (ROOM-A) - Room", cut.Find("[data-testid='trace-scope-location-select']").InnerHtml);
-        Assert.Contains("Select a profile, source animal, window, and optional scope, then run the trace.", cut.Find("[data-testid='trace-idle-state']").TextContent);
+        Assert.Contains("Select a profile, source animal or source stay, trace window, and optional scope, then run the trace.", cut.Find("[data-testid='trace-idle-state']").TextContent);
     }
 
     [Fact]
@@ -229,6 +245,90 @@ public sealed class ContactTracePageTests : BunitContext
 
         Assert.Equal("2026-04-10T08:15", cut.Find("[data-testid='trace-window-start']").GetAttribute("value"));
         Assert.Equal("2026-04-11T09:45", cut.Find("[data-testid='trace-window-end']").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void Source_Animal_Query_Prefill_Is_Shown_Clearly_And_Used_On_Submit()
+    {
+        SetReadOnlyUser();
+        NavigateToTrace("sourceAnimalId=1");
+
+        var cut = Render<ContactTrace>();
+
+        Assert.Contains("Source animal: A-1 - Milo", cut.Find("[data-testid='trace-prefill-source']").TextContent);
+        Assert.NotNull(cut.Find("[data-testid='trace-source-animal-summary']"));
+        Assert.Empty(cut.FindAll("[data-testid='trace-source-animal']"));
+
+        cut.Find("[data-testid='trace-disease-select']").Change("41");
+        cut.Find("[data-testid='trace-window-start']").Input("2026-04-16T00:00");
+        cut.Find("[data-testid='trace-window-end']").Input("2026-04-17T00:00");
+        cut.Find("[data-testid='trace-run-button']").Click();
+
+        Assert.Single(_contactTraceService.Requests);
+        Assert.Equal(1, _contactTraceService.Requests[0].SourceAnimalId);
+        Assert.Null(_contactTraceService.Requests[0].SourceStayId);
+    }
+
+    [Fact]
+    public void Source_Stay_Query_Prefill_Does_Not_Require_Re_Selecting_The_Animal()
+    {
+        SetReadOnlyUser();
+        NavigateToTrace("sourceMovementEventId=9001");
+
+        var cut = Render<ContactTrace>();
+
+        Assert.Contains("Source stay: A-1 - Milo", cut.Find("[data-testid='trace-prefill-source']").TextContent);
+        Assert.Contains("Kennel 1 (KEN-1) in Phoenix Shelter (PHX)", cut.Find("[data-testid='trace-source-stay-summary']").ParentElement!.TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='trace-source-animal']"));
+
+        cut.Find("[data-testid='trace-disease-select']").Change("41");
+        cut.Find("[data-testid='trace-window-start']").Input("2026-04-16T00:00");
+        cut.Find("[data-testid='trace-window-end']").Input("2026-04-17T00:00");
+        cut.Find("[data-testid='trace-run-button']").Click();
+
+        Assert.Single(_contactTraceService.Requests);
+        Assert.Null(_contactTraceService.Requests[0].SourceAnimalId);
+        Assert.Equal(9001, _contactTraceService.Requests[0].SourceStayId);
+    }
+
+    [Fact]
+    public void Scope_Query_Prefill_Is_Shown_Clearly_And_Used_On_Submit()
+    {
+        SetReadOnlyUser();
+        NavigateToTrace("scopeLocationId=999");
+
+        var cut = Render<ContactTrace>();
+
+        Assert.Contains("Retired Kennel (KEN-9) - Kennel [Inactive]", cut.Find("[data-testid='trace-scope-summary']").TextContent);
+        Assert.Empty(cut.FindAll("[data-testid='trace-scope-location-select']"));
+
+        SelectProfileAndAnimal(cut);
+        cut.Find("[data-testid='trace-window-start']").Input("2026-04-16T00:00");
+        cut.Find("[data-testid='trace-window-end']").Input("2026-04-17T00:00");
+        cut.Find("[data-testid='trace-run-button']").Click();
+
+        Assert.Single(_contactTraceService.Requests);
+        Assert.Equal(999, _contactTraceService.Requests[0].LocationScopeLocationId);
+    }
+
+    [Fact]
+    public void Clear_Reset_Behavior_Removes_Prefilled_State_And_Updates_The_Url()
+    {
+        SetReadOnlyUser();
+        NavigateToTrace("sourceMovementEventId=9001&scopeLocationId=999");
+
+        var cut = Render<ContactTrace>();
+
+        cut.Find("[data-testid='trace-clear-source-prefill']").Click();
+
+        Assert.NotNull(cut.Find("[data-testid='trace-source-animal']"));
+        Assert.DoesNotContain("sourceMovementEventId=9001", Services.GetRequiredService<NavigationManager>().Uri);
+        Assert.Contains("scopeLocationId=999", Services.GetRequiredService<NavigationManager>().Uri);
+
+        cut.Find("[data-testid='trace-clear-scope-prefill']").Click();
+
+        Assert.NotNull(cut.Find("[data-testid='trace-scope-location-select']"));
+        Assert.DoesNotContain("scopeLocationId=999", Services.GetRequiredService<NavigationManager>().Uri);
     }
 
     [Fact]
@@ -343,6 +443,7 @@ public sealed class ContactTracePageTests : BunitContext
             Assert.Contains("Depth 1", locationTable);
             Assert.Contains("Adjacent right", locationTable);
             Assert.Contains("Adjacent", cut.Find("[data-testid='trace-location-reason-102-Adjacent']").TextContent);
+            Assert.Equal("/facility-map?facilityId=12&roomLocationId=101&selectedLocationId=102", cut.Find("[data-testid='trace-location-name-102']").GetAttribute("href"));
         });
     }
 
@@ -458,6 +559,11 @@ public sealed class ContactTracePageTests : BunitContext
         cut.Find("[data-testid='trace-source-animal']").Input("A-1 - Milo");
     }
 
+    private void NavigateToTrace(string queryString)
+    {
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"http://localhost/trace?{queryString}");
+    }
+
     private static DateTime ParseDateTimeLocal(string? value) =>
         DateTime.ParseExact(value!, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None);
 
@@ -559,6 +665,27 @@ public sealed class ContactTracePageTests : BunitContext
             usesPartialGraphData: usesPartialGraphData);
     }
 
+    private static TraceSourceStaySummary CreateSourceStaySummary() =>
+        new(
+            new AnimalLookupRow(1, new AnimalCode("A-1"), "Milo", "Dog", true),
+            new AnimalMovementHistoryRow(
+                9001,
+                new DateTime(2026, 4, 16, 0, 0, 0, DateTimeKind.Utc),
+                null,
+                "Transfer",
+                12,
+                new FacilityCode("PHX"),
+                "Phoenix Shelter",
+                102,
+                new LocationCode("KEN-1"),
+                "Kennel 1",
+                LocationType.Kennel,
+                true,
+                101,
+                new LocationCode("ROOM-A"),
+                "Room A",
+                LocationType.Room));
+
     private sealed class FakeAnimalReadService : IAnimalReadService
     {
         public IReadOnlyList<AnimalLookupRow> LookupResults { get; set; } = [];
@@ -607,6 +734,12 @@ public sealed class ContactTracePageTests : BunitContext
 
         public IReadOnlyList<TraceLocationScopeOption> ScopeOptions { get; set; } = [];
 
+        public Dictionary<int, AnimalLookupRow?> SourceAnimalsById { get; } = [];
+
+        public Dictionary<long, TraceSourceStaySummary?> SourceStaysById { get; } = [];
+
+        public Dictionary<int, TraceLocationScopeOption?> ScopeSummariesById { get; } = [];
+
         public bool HoldRequests { get; set; }
 
         public int ListActiveDiseaseProfilesCallCount { get; private set; }
@@ -628,6 +761,15 @@ public sealed class ContactTracePageTests : BunitContext
                 ? new TaskCompletionSource<IReadOnlyList<TraceLocationScopeOption>>().Task
                 : Task.FromResult(ScopeOptions);
         }
+
+        public Task<AnimalLookupRow?> GetSourceAnimalSummaryAsync(int animalId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(SourceAnimalsById.GetValueOrDefault(animalId));
+
+        public Task<TraceSourceStaySummary?> GetSourceStaySummaryAsync(long movementEventId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(SourceStaysById.GetValueOrDefault(movementEventId));
+
+        public Task<TraceLocationScopeOption?> GetLocationScopeSummaryAsync(int locationId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(ScopeSummariesById.GetValueOrDefault(locationId));
     }
 
     private sealed class TestLayout : LayoutComponentBase

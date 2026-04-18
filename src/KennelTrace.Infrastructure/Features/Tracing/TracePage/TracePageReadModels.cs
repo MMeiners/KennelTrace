@@ -1,5 +1,6 @@
 using KennelTrace.Domain.Common;
 using KennelTrace.Domain.Features.Locations;
+using KennelTrace.Infrastructure.Features.Animals.AnimalRecords;
 
 namespace KennelTrace.Infrastructure.Features.Tracing.TracePage;
 
@@ -17,4 +18,13 @@ public sealed record TraceLocationScopeOption(
     string FacilityName,
     LocationCode LocationCode,
     string LocationName,
-    LocationType LocationType);
+    LocationType LocationType,
+    bool IsActive,
+    int? RoomLocationId,
+    LocationCode? RoomLocationCode,
+    string? RoomName,
+    LocationType? RoomLocationType);
+
+public sealed record TraceSourceStaySummary(
+    AnimalLookupRow Animal,
+    AnimalMovementHistoryRow Stay);

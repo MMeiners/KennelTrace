@@ -4,6 +4,7 @@ using KennelTrace.Domain.Features.Locations;
 using KennelTrace.Infrastructure.Features.Facilities.FacilityMap;
 using KennelTrace.Web.Components.Pages;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Components;
 using MudBlazor.Services;
 
 namespace KennelTrace.Web.Tests;
@@ -136,6 +137,47 @@ public sealed class FacilityMapPageTests : BunitContext
         Assert.Contains("2", detail.TextContent);
         Assert.Contains("AdjacentRight", detail.TextContent);
         Assert.Contains("Kennel 2 (KEN-2)", detail.TextContent);
+    }
+
+    [Fact]
+    public void Selected_Location_Detail_Shows_Trace_Scope_Deep_Link()
+    {
+        _service.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _service.RoomsByFacilityId[12] = [Room(12, 101, "ROOM-A", "Room A", LocationType.Room)];
+        _service.RoomMaps[(12, 101)] = RoomMap(
+            Facility(12, "PHX", "Phoenix Shelter"),
+            Location(101, 12, "ROOM-A", "Room A", LocationType.Room),
+            [Location(201, 12, "KEN-1", "Kennel 1", LocationType.Kennel, gridRow: 0, gridColumn: 0)],
+            []);
+
+        var cut = Render<FacilityMap>();
+        cut.Find("[data-testid='facility-select']").Change("12");
+        cut.Find("[data-testid='room-select']").Change("101");
+        cut.Find("[data-testid='location-201']").Click();
+
+        var action = cut.Find("[data-testid='facility-map-trace-scope-action']");
+        Assert.Equal("/trace?scopeLocationId=201", action.GetAttribute("href"));
+    }
+
+    [Fact]
+    public void Query_String_Loads_Selected_Room_And_Location_For_Trace_Round_Trip()
+    {
+        _service.Facilities = [Facility(12, "PHX", "Phoenix Shelter")];
+        _service.RoomsByFacilityId[12] = [Room(12, 101, "ROOM-A", "Room A", LocationType.Room)];
+        _service.RoomMaps[(12, 101)] = RoomMap(
+            Facility(12, "PHX", "Phoenix Shelter"),
+            Location(101, 12, "ROOM-A", "Room A", LocationType.Room),
+            [Location(201, 12, "KEN-1", "Kennel 1", LocationType.Kennel, gridRow: 0, gridColumn: 0)],
+            []);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/facility-map?facilityId=12&roomLocationId=101&selectedLocationId=201");
+
+        var cut = Render<FacilityMap>();
+
+        Assert.Equal([12], _service.ListRoomsFacilityIds);
+        Assert.Equal([(12, 101)], _service.GetRoomMapCalls);
+        Assert.Equal("Kennel 1", cut.Find("[data-testid='location-detail-name']").TextContent);
     }
 
     [Fact]

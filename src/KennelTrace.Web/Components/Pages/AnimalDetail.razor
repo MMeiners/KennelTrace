@@ -90,6 +90,23 @@
             </MudCard>
         }
 
+        <MudCard data-testid="animal-trace-actions-card">
+            <MudCardContent>
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                    <div>
+                        <MudText Typo="Typo.h6">Trace entry</MudText>
+                        <MudText Typo="Typo.body2" Class="text-muted">Start a trace from this animal, or use a specific movement row as the explicit source stay.</MudText>
+                    </div>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Secondary"
+                               Href="@GetTraceFromAnimalUrl(_animal.AnimalId)"
+                               data-testid="animal-run-trace-action">
+                        Run trace
+                    </MudButton>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+
         <AuthorizeView Roles="@KennelTraceRoles.Admin">
             <Authorized>
                 <MudCard data-testid="animal-quick-actions-card">
@@ -135,6 +152,7 @@
                             <MudTh>Location</MudTh>
                             <MudTh>Room</MudTh>
                             <MudTh>Reason</MudTh>
+                            <MudTh>Trace</MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Status">
@@ -155,6 +173,15 @@
                             <MudTd DataLabel="Location">@context.LocationName (@context.LocationCode.Value)</MudTd>
                             <MudTd DataLabel="Room">@GetRoomSummary(context)</MudTd>
                             <MudTd DataLabel="Reason">@GetValueOrFallback(context.MovementReason)</MudTd>
+                            <MudTd DataLabel="Trace">
+                                <MudButton Variant="Variant.Text"
+                                           Color="Color.Secondary"
+                                           Size="Size.Small"
+                                           Href="@GetTraceFromMovementUrl(context.MovementEventId)"
+                                           data-testid="@($"movement-trace-action-{context.MovementEventId}")">
+                                    Trace this stay
+                                </MudButton>
+                            </MudTd>
                         </RowTemplate>
                     </MudTable>
                 }
@@ -198,4 +225,10 @@
         historyRow.RoomLocationId.HasValue && historyRow.RoomLocationCode is not null && !string.IsNullOrWhiteSpace(historyRow.RoomName)
             ? $"{historyRow.RoomName} ({historyRow.RoomLocationCode.Value})"
             : "Not recorded";
+
+    private static string GetTraceFromAnimalUrl(int animalId) =>
+        $"/trace?sourceAnimalId={animalId}";
+
+    private static string GetTraceFromMovementUrl(long movementEventId) =>
+        $"/trace?sourceMovementEventId={movementEventId}";
 }

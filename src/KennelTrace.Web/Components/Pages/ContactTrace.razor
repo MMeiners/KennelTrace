@@ -11,6 +11,7 @@
 @inject IAnimalReadService AnimalReadService
 @inject IContactTraceService ContactTraceService
 @inject ILogger<ContactTrace> Logger
+@inject NavigationManager NavigationManager
 @inject ITracePageReadService TracePageReadService
 
 <PageTitle>Contact Trace</PageTitle>
@@ -18,7 +19,7 @@
 <MudStack Spacing="3" data-testid="trace-page">
     <div>
         <MudText Typo="Typo.h4">Contact Trace</MudText>
-        <MudText Typo="Typo.body1" Class="text-muted">Run one source-animal trace using persisted disease profiles, movement history, and optional location scope.</MudText>
+        <MudText Typo="Typo.body1" Class="text-muted">Run one contact trace using a persisted source animal or explicit source stay, disease profile, trace window, and optional location scope.</MudText>
     </div>
 
     @if (_isLoading)
@@ -35,6 +36,78 @@
     }
     else
     {
+        @if (_prefillWarnings.Count > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-testid="trace-prefill-warning-state">
+                @if (_prefillWarnings.Count == 1)
+                {
+                    @_prefillWarnings[0]
+                }
+                else
+                {
+                    <ul class="mb-0">
+                        @foreach (var warning in _prefillWarnings)
+                        {
+                            <li>@warning</li>
+                        }
+                    </ul>
+                }
+            </MudAlert>
+        }
+
+        @if (HasAnyActivePrefills)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-prefill-state">
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.body2">This trace started from a deep link. Clear the prefilled source or scope to switch back to the standard picker.</MudText>
+
+                    @if (HasActiveSourcePrefill)
+                    {
+                        <MudText Typo="Typo.body2" data-testid="trace-prefill-source">
+                            @GetSourcePrefillSummaryText()
+                        </MudText>
+                    }
+
+                    @if (HasActiveScopePrefill && _selectedScopeLocationSummary is not null)
+                    {
+                        <MudText Typo="Typo.body2" data-testid="trace-prefill-scope">
+                            Scope: @GetScopeLocationLabel(_selectedScopeLocationSummary)
+                        </MudText>
+                    }
+
+                    <div class="d-flex gap-2 flex-wrap">
+                        @if (HasActiveSourcePrefill)
+                        {
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm"
+                                    data-testid="trace-clear-source-prefill"
+                                    @onclick="ClearSourcePrefill">
+                                Clear source
+                            </button>
+                        }
+
+                        @if (HasActiveScopePrefill)
+                        {
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm"
+                                    data-testid="trace-clear-scope-prefill"
+                                    @onclick="ClearScopePrefill">
+                                Clear scope
+                            </button>
+                        }
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                data-testid="trace-clear-all-prefills"
+                                @onclick="ClearAllPrefills"
+                                disabled="@(!HasAnyActivePrefills)">
+                            Clear all prefills
+                        </button>
+                    </div>
+                </MudStack>
+            </MudAlert>
+        }
+
         <MudCard data-testid="trace-input-form">
             <MudCardContent>
                 <MudGrid Spacing="2">
@@ -56,23 +129,56 @@
                     </MudItem>
 
                     <MudItem xs="12" md="6">
-                        <label class="form-label" for="trace-source-animal">Source animal</label>
-                        <input id="trace-source-animal"
-                               class="form-control"
-                               data-testid="trace-source-animal"
-                               list="trace-source-animal-options"
-                               placeholder="Search by animal number or name"
-                               value="@(_animalSearchText ?? string.Empty)"
-                               disabled="@_isRunningTrace"
-                               @oninput="OnAnimalSearchChangedAsync" />
-                        <datalist id="trace-source-animal-options">
-                            @foreach (var animal in _animalOptions)
-                            {
-                                <option value="@FormatAnimalOption(animal)"></option>
-                            }
-                        </datalist>
-                        <div class="form-text">Pick one persisted animal from the lookup suggestions.</div>
-                        @RenderFieldError(nameof(ContactTraceRequest.SourceAnimalId))
+                        @if (UsesPrefilledSourceSelection)
+                        {
+                            <MudCard Outlined="true" data-testid="trace-source-prefill-card">
+                                <MudCardContent>
+                                    @if (_selectedSourceStay is not null)
+                                    {
+                                        <MudText Typo="Typo.subtitle2">Source stay</MudText>
+                                        <MudText Typo="Typo.body1" data-testid="trace-source-stay-summary">
+                                            @FormatAnimalOption(_selectedSourceStay.Animal)
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Class="text-muted">
+                                            @GetSourceStayLocationSummary(_selectedSourceStay)
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Class="text-muted">
+                                            @GetSourceStayWindowSummary(_selectedSourceStay)
+                                        </MudText>
+                                    }
+                                    else if (_selectedAnimal is not null)
+                                    {
+                                        <MudText Typo="Typo.subtitle2">Source animal</MudText>
+                                        <MudText Typo="Typo.body1" data-testid="trace-source-animal-summary">
+                                            @FormatAnimalOption(_selectedAnimal)
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Class="text-muted">
+                                            This persisted source animal came from a deep link.
+                                        </MudText>
+                                    }
+                                </MudCardContent>
+                            </MudCard>
+                        }
+                        else
+                        {
+                            <label class="form-label" for="trace-source-animal">Source animal</label>
+                            <input id="trace-source-animal"
+                                   class="form-control"
+                                   data-testid="trace-source-animal"
+                                   list="trace-source-animal-options"
+                                   placeholder="Search by animal number or name"
+                                   value="@(_animalSearchText ?? string.Empty)"
+                                   disabled="@_isRunningTrace"
+                                   @oninput="OnAnimalSearchChangedAsync" />
+                            <datalist id="trace-source-animal-options">
+                                @foreach (var animal in _animalOptions)
+                                {
+                                    <option value="@FormatAnimalOption(animal)"></option>
+                                }
+                            </datalist>
+                            <div class="form-text">Pick one persisted animal from the lookup suggestions.</div>
+                            @RenderFieldError(nameof(ContactTraceRequest.SourceAnimalId))
+                        }
                     </MudItem>
 
                     <MudItem xs="12" md="6">
@@ -101,38 +207,57 @@
                         @RenderFieldError(nameof(ContactTraceRequest.TraceWindowEndUtc))
                     </MudItem>
 
-                    <MudItem xs="12" md="4">
-                        <label class="form-label" for="trace-scope-facility-select">Scope facility</label>
-                        <select id="trace-scope-facility-select"
-                                class="form-select"
-                                data-testid="trace-scope-facility-select"
-                                value="@FormatSelectedValue(_selectedScopeFacilityId)"
-                                @onchange="OnScopeFacilityChanged"
-                                disabled="@(_scopeFacilities.Count == 0 || _isRunningTrace)">
-                            <option value="">All persisted scope locations</option>
-                            @foreach (var facility in _scopeFacilities)
-                            {
-                                <option value="@facility.FacilityId">@facility.Label</option>
-                            }
-                        </select>
-                        <div class="form-text">This only narrows the scope-location picker. It is not sent as a second trace filter.</div>
-                    </MudItem>
+                    @if (UsesPrefilledScopeSelection && _selectedScopeLocationSummary is not null)
+                    {
+                        <MudItem xs="12">
+                            <MudCard Outlined="true" data-testid="trace-scope-prefill-card">
+                                <MudCardContent>
+                                    <MudText Typo="Typo.subtitle2">Location scope</MudText>
+                                    <MudText Typo="Typo.body1" data-testid="trace-scope-summary">
+                                        @GetScopeLocationLabel(_selectedScopeLocationSummary)
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="text-muted">
+                                        This persisted location scope came from a deep link.
+                                    </MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    }
+                    else
+                    {
+                        <MudItem xs="12" md="4">
+                            <label class="form-label" for="trace-scope-facility-select">Scope facility</label>
+                            <select id="trace-scope-facility-select"
+                                    class="form-select"
+                                    data-testid="trace-scope-facility-select"
+                                    value="@FormatSelectedValue(_selectedScopeFacilityId)"
+                                    @onchange="OnScopeFacilityChanged"
+                                    disabled="@(_scopeFacilities.Count == 0 || _isRunningTrace)">
+                                <option value="">All persisted scope locations</option>
+                                @foreach (var facility in _scopeFacilities)
+                                {
+                                    <option value="@facility.FacilityId">@facility.Label</option>
+                                }
+                            </select>
+                            <div class="form-text">This only narrows the scope-location picker. It is not sent as a second trace filter.</div>
+                        </MudItem>
 
-                    <MudItem xs="12" md="8">
-                        <label class="form-label" for="trace-scope-location-select">Optional location scope</label>
-                        <select id="trace-scope-location-select"
-                                class="form-select"
-                                data-testid="trace-scope-location-select"
-                                value="@FormatSelectedValue(_selectedScopeLocationId)"
-                                @onchange="OnScopeLocationChanged"
-                                disabled="@(FilteredScopeOptions.Count == 0 || _isRunningTrace)">
-                            <option value="">No location scope</option>
-                            @foreach (var option in FilteredScopeOptions)
-                            {
-                                <option value="@option.LocationId">@GetScopeLocationLabel(option)</option>
-                            }
-                        </select>
-                    </MudItem>
+                        <MudItem xs="12" md="8">
+                            <label class="form-label" for="trace-scope-location-select">Optional location scope</label>
+                            <select id="trace-scope-location-select"
+                                    class="form-select"
+                                    data-testid="trace-scope-location-select"
+                                    value="@FormatSelectedValue(_selectedScopeLocationId)"
+                                    @onchange="OnScopeLocationChanged"
+                                    disabled="@(AvailableScopeOptions.Count == 0 || _isRunningTrace)">
+                                <option value="">No location scope</option>
+                                @foreach (var option in AvailableScopeOptions)
+                                {
+                                    <option value="@option.LocationId">@GetScopeLocationLabel(option)</option>
+                                }
+                            </select>
+                        </MudItem>
+                    }
 
                     <MudItem xs="12">
                         <div class="d-flex gap-2">
@@ -156,13 +281,13 @@
             </MudAlert>
         }
 
-        @if (_scopeOptions.Count == 0)
+        @if (!UsesPrefilledScopeSelection && _scopeOptions.Count == 0)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-no-scope-options">
                 No persisted location scope options are available yet.
             </MudAlert>
         }
-        else if (_selectedScopeFacilityId.HasValue && FilteredScopeOptions.Count == 0)
+        else if (!UsesPrefilledScopeSelection && _selectedScopeFacilityId.HasValue && AvailableScopeOptions.Count == 0)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-no-scoped-facility-options">
                 No persisted location scope options are available for the selected facility.
@@ -185,7 +310,7 @@
         else if (_lastRunSummary is null)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-idle-state">
-                Select a profile, source animal, window, and optional scope, then run the trace.
+                Select a profile, source animal or source stay, trace window, and optional scope, then run the trace.
             </MudAlert>
         }
         else
@@ -196,8 +321,8 @@
                     <dl class="row mb-0">
                         <dt class="col-sm-3">Disease profile</dt>
                         <dd class="col-sm-9">@_lastRunSummary.DiseaseProfileLabel</dd>
-                        <dt class="col-sm-3">Source animal</dt>
-                        <dd class="col-sm-9">@_lastRunSummary.SourceAnimalLabel</dd>
+                        <dt class="col-sm-3">Trace source</dt>
+                        <dd class="col-sm-9">@_lastRunSummary.SourceLabel</dd>
                         <dt class="col-sm-3">Window (UTC)</dt>
                         <dd class="col-sm-9">@FormatUtcWindow(_lastRunSummary.TraceWindowStartUtc, _lastRunSummary.TraceWindowEndUtc)</dd>
                         <dt class="col-sm-3">Location scope</dt>
@@ -249,9 +374,19 @@
                                         : GetLocationOption(context.ScopeLocationId.Value);
                                 }
                                 <MudTd DataLabel="Location">
-                                    <MudText Typo="Typo.body1" data-testid="@($"trace-location-name-{context.LocationId}")">
-                                        @GetLocationPrimaryLabel(locationOption, context.LocationId)
-                                    </MudText>
+                                    @if (TryGetFacilityMapUrl(locationOption, out var facilityMapUrl))
+                                    {
+                                        <MudLink Href="@facilityMapUrl"
+                                                 data-testid="@($"trace-location-name-{context.LocationId}")">
+                                            @GetLocationPrimaryLabel(locationOption, context.LocationId)
+                                        </MudLink>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.body1" data-testid="@($"trace-location-name-{context.LocationId}")">
+                                            @GetLocationPrimaryLabel(locationOption, context.LocationId)
+                                        </MudText>
+                                    }
                                     <MudText Typo="Typo.body2" Class="text-muted">
                                         @GetLocationSecondaryLabel(locationOption)
                                     </MudText>
@@ -417,6 +552,18 @@
 </MudStack>
 
 @code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "sourceAnimalId")]
+    public int? SourceAnimalIdQuery { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "sourceMovementEventId")]
+    public long? SourceMovementEventIdQuery { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "scopeLocationId")]
+    public int? ScopeLocationIdQuery { get; set; }
+
     private IReadOnlyList<TraceDiseaseProfileOption> _diseaseProfiles = [];
     private IReadOnlyList<TraceLocationScopeOption> _scopeOptions = [];
     private IReadOnlyList<ScopeFacilityOption> _scopeFacilities = [];
@@ -434,6 +581,13 @@
     private bool _windowWasManuallyEdited;
     private string? _loadErrorMessage;
     private string? _serviceErrorMessage;
+    private readonly List<string> _prefillWarnings = [];
+    private bool _hasLoadedInputs;
+    private string? _lastAppliedQuerySignature;
+    private bool _sourcePrefillIsActive;
+    private bool _scopePrefillIsActive;
+    private TraceSourceStaySummary? _selectedSourceStay;
+    private TraceLocationScopeOption? _selectedScopeLocationSummary;
     private ContactTraceResult? _traceResult;
     private TraceRunSummary? _lastRunSummary;
     private Dictionary<int, TraceLocationScopeOption> _locationOptionsById = [];
@@ -443,8 +597,39 @@
             ? _scopeOptions
             : _scopeOptions.Where(x => x.FacilityId == _selectedScopeFacilityId.Value).ToList();
 
-    protected override async Task OnInitializedAsync()
+    private IReadOnlyList<TraceLocationScopeOption> AvailableScopeOptions =>
+        _selectedScopeLocationSummary is null
+        || (_selectedScopeFacilityId.HasValue && _selectedScopeLocationSummary.FacilityId != _selectedScopeFacilityId.Value)
+            ? FilteredScopeOptions
+            : FilteredScopeOptions.Any(x => x.LocationId == _selectedScopeLocationSummary.LocationId)
+                ? FilteredScopeOptions
+                : [.. FilteredScopeOptions, _selectedScopeLocationSummary];
+
+    private bool UsesPrefilledSourceSelection =>
+        _sourcePrefillIsActive && (_selectedSourceStay is not null || _selectedAnimal is not null);
+
+    private bool UsesPrefilledScopeSelection =>
+        _scopePrefillIsActive && _selectedScopeLocationSummary is not null;
+
+    private bool HasActiveSourcePrefill => UsesPrefilledSourceSelection;
+
+    private bool HasActiveScopePrefill => UsesPrefilledScopeSelection;
+
+    private bool HasAnyActivePrefills => HasActiveSourcePrefill || HasActiveScopePrefill;
+
+    protected override async Task OnParametersSetAsync()
     {
+        await EnsureInputsLoadedAsync();
+        await ApplyQueryPrefillsAsync();
+    }
+
+    private async Task EnsureInputsLoadedAsync()
+    {
+        if (_hasLoadedInputs)
+        {
+            return;
+        }
+
         try
         {
             var diseaseProfilesTask = TracePageReadService.ListActiveDiseaseProfilesAsync();
@@ -470,8 +655,104 @@
         }
         finally
         {
+            _hasLoadedInputs = true;
             _isLoading = false;
         }
+    }
+
+    private async Task ApplyQueryPrefillsAsync()
+    {
+        if (!_hasLoadedInputs || !string.IsNullOrWhiteSpace(_loadErrorMessage))
+        {
+            return;
+        }
+
+        var querySignature = $"{SourceAnimalIdQuery}|{SourceMovementEventIdQuery}|{ScopeLocationIdQuery}";
+        if (string.Equals(_lastAppliedQuerySignature, querySignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastAppliedQuerySignature = querySignature;
+        _prefillWarnings.Clear();
+
+        await ApplySourcePrefillAsync();
+        await ApplyScopePrefillAsync();
+    }
+
+    private async Task ApplySourcePrefillAsync()
+    {
+        if (!SourceMovementEventIdQuery.HasValue && !SourceAnimalIdQuery.HasValue)
+        {
+            if (_sourcePrefillIsActive)
+            {
+                ResetSourceSelection();
+                _sourcePrefillIsActive = false;
+            }
+
+            return;
+        }
+
+        ResetSourceSelection();
+        _sourcePrefillIsActive = false;
+
+        if (SourceMovementEventIdQuery.HasValue)
+        {
+            var sourceStaySummary = await TracePageReadService.GetSourceStaySummaryAsync(SourceMovementEventIdQuery.Value);
+            if (sourceStaySummary is not null)
+            {
+                _selectedSourceStay = sourceStaySummary;
+                _sourcePrefillIsActive = true;
+                return;
+            }
+
+            _prefillWarnings.Add($"The requested source stay #{SourceMovementEventIdQuery.Value} could not be found. Pick a different trace source.");
+        }
+
+        if (SourceAnimalIdQuery.HasValue)
+        {
+            var animalSummary = await TracePageReadService.GetSourceAnimalSummaryAsync(SourceAnimalIdQuery.Value);
+            if (animalSummary is not null)
+            {
+                _selectedAnimal = animalSummary;
+                _animalSearchText = FormatAnimalOption(animalSummary);
+                _sourcePrefillIsActive = true;
+                return;
+            }
+
+            _prefillWarnings.Add($"The requested source animal #{SourceAnimalIdQuery.Value} could not be found. Pick a persisted source animal.");
+        }
+    }
+
+    private async Task ApplyScopePrefillAsync()
+    {
+        if (!ScopeLocationIdQuery.HasValue)
+        {
+            if (_scopePrefillIsActive)
+            {
+                ResetScopeSelection();
+                _scopePrefillIsActive = false;
+            }
+
+            return;
+        }
+
+        var scopeSummary = _locationOptionsById.GetValueOrDefault(ScopeLocationIdQuery.Value)
+            ?? await TracePageReadService.GetLocationScopeSummaryAsync(ScopeLocationIdQuery.Value);
+
+        if (scopeSummary is null)
+        {
+            _prefillWarnings.Add($"The requested location scope #{ScopeLocationIdQuery.Value} could not be found. Pick a different scope location if needed.");
+            ResetScopeSelection();
+            _scopePrefillIsActive = false;
+            return;
+        }
+
+        RegisterLocationOption(scopeSummary);
+        _selectedScopeLocationSummary = scopeSummary;
+        _selectedScopeFacilityId = scopeSummary.FacilityId;
+        _selectedScopeLocationId = scopeSummary.LocationId;
+        _scopePrefillIsActive = true;
     }
 
     private async Task OnAnimalSearchChangedAsync(ChangeEventArgs args)
@@ -548,12 +829,12 @@
             var selectedProfile = _diseaseProfiles.Single(x => x.DiseaseTraceProfileId == request.DiseaseTraceProfileId);
             var selectedScope = _selectedScopeLocationId is null
                 ? null
-                : _scopeOptions.FirstOrDefault(x => x.LocationId == _selectedScopeLocationId.Value);
+                : _selectedScopeLocationSummary ?? _locationOptionsById.GetValueOrDefault(_selectedScopeLocationId.Value);
 
             _traceResult = result;
             _lastRunSummary = new TraceRunSummary(
                 GetDiseaseProfileLabel(selectedProfile),
-                FormatAnimalOption(_selectedAnimal) ?? "Unknown source animal",
+                GetSelectedSourceSummaryLabel(),
                 traceWindowStartUtc,
                 traceWindowEndUtc,
                 selectedScope is null ? null : GetScopeLocationLabel(selectedScope),
@@ -590,7 +871,7 @@
             _fieldErrors[nameof(ContactTraceRequest.DiseaseTraceProfileId)] = ["Select a disease profile before running a trace."];
         }
 
-        if (_selectedAnimal is null)
+        if (_selectedSourceStay is null && _selectedAnimal is null)
         {
             _fieldErrors[nameof(ContactTraceRequest.SourceAnimalId)] = ["Select a persisted source animal before running a trace."];
         }
@@ -620,8 +901,8 @@
             _selectedDiseaseTraceProfileId!.Value,
             traceWindowStartUtc,
             traceWindowEndUtc,
-            sourceAnimalId: _selectedAnimal!.AnimalId,
-            sourceStayId: null,
+            sourceAnimalId: _selectedSourceStay is null ? _selectedAnimal!.AnimalId : null,
+            sourceStayId: _selectedSourceStay?.Stay.MovementEventId,
             facilityId: null,
             locationScopeLocationId: _selectedScopeLocationId);
         return true;
@@ -652,11 +933,58 @@
         _serviceErrorMessage = null;
     }
 
+    private void ClearSourcePrefill()
+    {
+        ResetSourceSelection();
+        _sourcePrefillIsActive = false;
+        ClearSubmitFeedback();
+        NavigationManager.NavigateTo(BuildTraceUrl(scopeLocationId: HasActiveScopePrefill ? _selectedScopeLocationId : null), replace: true);
+    }
+
+    private void ClearScopePrefill()
+    {
+        ResetScopeSelection();
+        _scopePrefillIsActive = false;
+        ClearSubmitFeedback();
+        NavigationManager.NavigateTo(
+            BuildTraceUrl(
+                sourceAnimalId: HasActiveSourcePrefill && _selectedSourceStay is null ? _selectedAnimal?.AnimalId : null,
+                sourceMovementEventId: HasActiveSourcePrefill ? _selectedSourceStay?.Stay.MovementEventId : null),
+            replace: true);
+    }
+
+    private void ClearAllPrefills()
+    {
+        ResetSourceSelection();
+        ResetScopeSelection();
+        _sourcePrefillIsActive = false;
+        _scopePrefillIsActive = false;
+        ClearSubmitFeedback();
+        NavigationManager.NavigateTo(BuildTraceUrl(), replace: true);
+    }
+
+    private void ResetSourceSelection()
+    {
+        _selectedSourceStay = null;
+        _selectedAnimal = null;
+        _animalSearchText = null;
+        _animalOptions = [];
+    }
+
+    private void ResetScopeSelection()
+    {
+        _selectedScopeLocationSummary = null;
+        _selectedScopeFacilityId = null;
+        _selectedScopeLocationId = null;
+    }
+
     private static string GetDiseaseProfileLabel(TraceDiseaseProfileOption option) =>
         $"{option.DiseaseName} ({option.DiseaseCode.Value})";
 
     private static string GetScopeLocationLabel(TraceLocationScopeOption option) =>
-        $"{option.LocationName} ({option.LocationCode.Value}) - {option.LocationType}";
+        option.IsActive
+            ? $"{option.LocationName} ({option.LocationCode.Value}) - {option.LocationType}"
+            : $"{option.LocationName} ({option.LocationCode.Value}) - {option.LocationType} [Inactive]";
 
     private static string? FormatAnimalOption(AnimalLookupRow? option) =>
         option is null
@@ -664,6 +992,32 @@
             : string.IsNullOrWhiteSpace(option.Name)
                 ? option.AnimalNumber.Value
                 : $"{option.AnimalNumber.Value} - {option.Name}";
+
+    private string GetSelectedSourceSummaryLabel()
+    {
+        if (_selectedSourceStay is not null)
+        {
+            return $"{FormatAnimalOption(_selectedSourceStay.Animal)} | {GetSourceStayLocationSummary(_selectedSourceStay)} | {GetSourceStayWindowSummary(_selectedSourceStay)}";
+        }
+
+        return FormatAnimalOption(_selectedAnimal) ?? "Unknown trace source";
+    }
+
+    private string GetSourcePrefillSummaryText()
+    {
+        if (_selectedSourceStay is not null)
+        {
+            return $"Source stay: {GetSelectedSourceSummaryLabel()}";
+        }
+
+        return $"Source animal: {FormatAnimalOption(_selectedAnimal) ?? "Unknown trace source"}";
+    }
+
+    private static string GetSourceStayLocationSummary(TraceSourceStaySummary summary) =>
+        $"{summary.Stay.LocationName} ({summary.Stay.LocationCode.Value}) in {summary.Stay.FacilityName} ({summary.Stay.FacilityCode.Value})";
+
+    private static string GetSourceStayWindowSummary(TraceSourceStaySummary summary) =>
+        $"Stay {FormatUtc(summary.Stay.StartUtc)} to {TraceResultPresenter.FormatUtc(summary.Stay.EndUtc)}";
 
     private static AnimalLookupRow? ResolveSelectedAnimal(string? input, IEnumerable<AnimalLookupRow> options)
     {
@@ -676,6 +1030,38 @@
             string.Equals(FormatAnimalOption(option), input, StringComparison.OrdinalIgnoreCase)
             || string.Equals(option.AnimalNumber.Value, input, StringComparison.OrdinalIgnoreCase)
             || string.Equals(option.Name, input, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void RegisterLocationOption(TraceLocationScopeOption option)
+    {
+        _locationOptionsById[option.LocationId] = option;
+    }
+
+    private static string BuildTraceUrl(
+        int? sourceAnimalId = null,
+        long? sourceMovementEventId = null,
+        int? scopeLocationId = null)
+    {
+        var parameters = new List<string>();
+
+        if (sourceAnimalId.HasValue)
+        {
+            parameters.Add($"sourceAnimalId={sourceAnimalId.Value}");
+        }
+
+        if (sourceMovementEventId.HasValue)
+        {
+            parameters.Add($"sourceMovementEventId={sourceMovementEventId.Value}");
+        }
+
+        if (scopeLocationId.HasValue)
+        {
+            parameters.Add($"scopeLocationId={scopeLocationId.Value}");
+        }
+
+        return parameters.Count == 0
+            ? "/trace"
+            : $"/trace?{string.Join("&", parameters)}";
     }
 
     private static string FormatSelectedValue(int? value) => value?.ToString() ?? string.Empty;
@@ -714,6 +1100,18 @@
 
     private TraceLocationScopeOption? GetLocationOption(int locationId) =>
         _locationOptionsById.GetValueOrDefault(locationId);
+
+    private static bool TryGetFacilityMapUrl(TraceLocationScopeOption? locationOption, out string? facilityMapUrl)
+    {
+        if (locationOption?.RoomLocationId is null)
+        {
+            facilityMapUrl = null;
+            return false;
+        }
+
+        facilityMapUrl = $"/facility-map?facilityId={locationOption.FacilityId}&roomLocationId={locationOption.RoomLocationId.Value}&selectedLocationId={locationOption.LocationId}";
+        return true;
+    }
 
     private static string GetLocationPrimaryLabel(TraceLocationScopeOption? locationOption, int locationId) =>
         locationOption is null
@@ -886,7 +1284,7 @@
 
     private sealed record TraceRunSummary(
         string DiseaseProfileLabel,
-        string SourceAnimalLabel,
+        string SourceLabel,
         DateTime TraceWindowStartUtc,
         DateTime TraceWindowEndUtc,
         string? LocationScopeLabel,

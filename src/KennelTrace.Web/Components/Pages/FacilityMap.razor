@@ -175,6 +175,14 @@
                     <dd>@_selectedLocation.CurrentOccupancyCount</dd>
                 </dl>
 
+                <div class="mb-3">
+                    <a class="btn btn-outline-primary btn-sm"
+                       href="@GetTraceScopeUrl(_selectedLocation)"
+                       data-testid="facility-map-trace-scope-action">
+                        Open trace with this scope
+                    </a>
+                </div>
+
                 @if (!string.IsNullOrWhiteSpace(_selectedLocation.Notes))
                 {
                     <div class="facility-map-notes">
@@ -207,6 +215,18 @@
 }
 
 @code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "facilityId")]
+    public int? FacilityIdQuery { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "roomLocationId")]
+    public int? RoomLocationIdQuery { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "selectedLocationId")]
+    public int? SelectedLocationIdQuery { get; set; }
+
     private IReadOnlyList<FacilityMapFacilityOption> _facilities = [];
     private IReadOnlyList<FacilityMapRoomOption> _rooms = [];
     private RoomMapResult? _roomMap;
@@ -214,15 +234,55 @@
     private int? _selectedFacilityId;
     private int? _selectedRoomLocationId;
     private string? _errorMessage;
+    private bool _hasLoadedFacilities;
+    private string? _lastAppliedQuerySignature;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         await LoadFacilitiesAsync();
+        await ApplyQuerySelectionAsync();
     }
 
     private async Task LoadFacilitiesAsync()
     {
+        if (_hasLoadedFacilities)
+        {
+            return;
+        }
+
         _facilities = await FacilityMapReadService.ListFacilitiesAsync();
+        _hasLoadedFacilities = true;
+    }
+
+    private async Task ApplyQuerySelectionAsync()
+    {
+        var querySignature = $"{FacilityIdQuery}|{RoomLocationIdQuery}|{SelectedLocationIdQuery}";
+        if (string.Equals(_lastAppliedQuerySignature, querySignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastAppliedQuerySignature = querySignature;
+
+        if (!FacilityIdQuery.HasValue || !RoomLocationIdQuery.HasValue)
+        {
+            return;
+        }
+
+        _selectedFacilityId = FacilityIdQuery.Value;
+        _rooms = await FacilityMapReadService.ListRoomsAsync(_selectedFacilityId.Value);
+        _selectedRoomLocationId = RoomLocationIdQuery.Value;
+        _roomMap = await FacilityMapReadService.GetRoomMapAsync(_selectedFacilityId.Value, _selectedRoomLocationId.Value);
+        _errorMessage = null;
+
+        if (_roomMap is null)
+        {
+            _selectedLocation = null;
+            _errorMessage = "The selected room map could not be loaded.";
+            return;
+        }
+
+        _selectedLocation = ResolveSelectedLocation(SelectedLocationIdQuery);
     }
 
     private async Task OnFacilityChanged(ChangeEventArgs args)
@@ -268,6 +328,20 @@
     private void SelectLocation(FacilityMapLocationDetail location)
     {
         _selectedLocation = location;
+    }
+
+    private FacilityMapLocationDetail ResolveSelectedLocation(int? selectedLocationId)
+    {
+        if (_roomMap is null || !selectedLocationId.HasValue)
+        {
+            return _roomMap?.Room ?? throw new InvalidOperationException("Room map must be loaded before selecting a location.");
+        }
+
+        return _roomMap.Room.LocationId == selectedLocationId.Value
+            ? _roomMap.Room
+            : _roomMap.PlacedLocations.Concat(_roomMap.UnplacedLocations)
+                .FirstOrDefault(x => x.LocationId == selectedLocationId.Value)
+            ?? _roomMap.Room;
     }
 
     private bool HasAnyMappedLocations() =>
@@ -341,6 +415,9 @@
     private static string FormatSelectedValue(int? value) => value?.ToString() ?? string.Empty;
 
     private static string GetLocationTestId(FacilityMapLocationDetail location) => $"location-{location.LocationId}";
+
+    private static string GetTraceScopeUrl(FacilityMapLocationDetail location) =>
+        $"/trace?scopeLocationId={location.LocationId}";
 
     private static string GetCounterpartySummary(FacilityMapLocationDetail selectedLocation, FacilityMapLocationLink link)
     {

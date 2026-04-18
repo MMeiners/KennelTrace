@@ -96,7 +96,122 @@ public sealed class TracePageReadServiceTests : IAsyncLifetime
             options.Select(x => $"{x.FacilityName}:{x.LocationName}").ToArray());
         Assert.Equal("ALPHA", options[0].FacilityCode.Value);
         Assert.Equal(LocationType.Kennel, options[0].LocationType);
+        Assert.Equal(alphaRoom.LocationId, options[0].RoomLocationId);
+        Assert.Equal("ROOM-A", options[0].RoomLocationCode?.Value);
         Assert.DoesNotContain(options, x => x.LocationCode.Value == "ISO-OLD");
+    }
+
+    [Fact]
+    public async Task Source_Animal_Summary_Loads_Any_Persisted_Animal_By_Id()
+    {
+        await using var context = CreateContext();
+        var now = Utc(2026, 4, 17, 16);
+
+        var activeAnimal = new KennelTrace.Domain.Features.Animals.Animal(
+            new AnimalCode("A-10"),
+            now,
+            now,
+            name: "Milo",
+            species: "Dog");
+        var inactiveAnimal = new KennelTrace.Domain.Features.Animals.Animal(
+            new AnimalCode("A-11"),
+            now,
+            now,
+            name: "Luna",
+            species: "Dog",
+            isActive: false);
+        context.Animals.AddRange(activeAnimal, inactiveAnimal);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+
+        var summary = await service.GetSourceAnimalSummaryAsync(inactiveAnimal.AnimalId);
+
+        Assert.NotNull(summary);
+        Assert.Equal("A-11", summary!.AnimalNumber.Value);
+        Assert.Equal("Luna", summary.Name);
+        Assert.False(summary.IsActive);
+    }
+
+    [Fact]
+    public async Task Source_Stay_Summary_Loads_Movement_Animal_And_Room_Context()
+    {
+        await using var context = CreateContext();
+        var now = Utc(2026, 4, 17, 16);
+
+        var facility = new Facility(new FacilityCode("ALPHA"), "Alpha Shelter", "America/Phoenix", now, now);
+        context.Facilities.Add(facility);
+        await context.SaveChangesAsync();
+
+        var room = new Location(facility.FacilityId, LocationType.Room, new LocationCode("ROOM-A"), "Room A", now, now);
+        context.Locations.Add(room);
+        await context.SaveChangesAsync();
+
+        var kennel = new Location(facility.FacilityId, LocationType.Kennel, new LocationCode("KEN-1"), "Kennel 1", now, now, room.LocationId, gridRow: 0, gridColumn: 0);
+        context.Locations.Add(kennel);
+
+        var animal = new KennelTrace.Domain.Features.Animals.Animal(
+            new AnimalCode("A-77"),
+            now,
+            now,
+            name: "Luna",
+            species: "Dog");
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+
+        var movement = new KennelTrace.Domain.Features.Animals.MovementEvent(
+            animal.AnimalId,
+            kennel.LocationId,
+            Utc(2026, 4, 16, 12),
+            now,
+            now,
+            endUtc: null,
+            movementReason: "Transfer");
+        context.MovementEvents.Add(movement);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+
+        var summary = await service.GetSourceStaySummaryAsync(movement.MovementEventId);
+
+        Assert.NotNull(summary);
+        Assert.Equal("A-77", summary!.Animal.AnimalNumber.Value);
+        Assert.Equal(movement.MovementEventId, summary.Stay.MovementEventId);
+        Assert.Equal("Kennel 1", summary.Stay.LocationName);
+        Assert.Equal(room.LocationId, summary.Stay.RoomLocationId);
+        Assert.Equal("ROOM-A", summary.Stay.RoomLocationCode?.Value);
+    }
+
+    [Fact]
+    public async Task Location_Scope_Summary_Can_Load_Inactive_Location_For_Deep_Link_Prefill()
+    {
+        await using var context = CreateContext();
+        var now = Utc(2026, 4, 17, 16);
+
+        var facility = new Facility(new FacilityCode("ALPHA"), "Alpha Shelter", "America/Phoenix", now, now);
+        context.Facilities.Add(facility);
+        await context.SaveChangesAsync();
+
+        var room = new Location(facility.FacilityId, LocationType.Room, new LocationCode("ROOM-A"), "Room A", now, now);
+        context.Locations.Add(room);
+        await context.SaveChangesAsync();
+
+        var inactiveKennel = new Location(facility.FacilityId, LocationType.Kennel, new LocationCode("KEN-9"), "Kennel 9", now, now, room.LocationId, gridRow: 0, gridColumn: 0);
+        context.Locations.Add(inactiveKennel);
+        await context.SaveChangesAsync();
+
+        inactiveKennel.Deactivate(now.AddHours(1));
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+
+        var summary = await service.GetLocationScopeSummaryAsync(inactiveKennel.LocationId);
+
+        Assert.NotNull(summary);
+        Assert.Equal(inactiveKennel.LocationId, summary!.LocationId);
+        Assert.False(summary.IsActive);
+        Assert.Equal(room.LocationId, summary.RoomLocationId);
+        Assert.Equal("ROOM-A", summary.RoomLocationCode?.Value);
     }
 
     private KennelTraceDbContext CreateContext()

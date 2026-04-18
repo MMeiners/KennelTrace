@@ -493,3 +493,26 @@ Verification result in this shell:
 - `dotnet build KennelTrace.sln` passed with 0 warnings and 0 errors.
 - The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed in one existing Step 11C assertion because the default fake location result fixture started deriving primary location metadata from the richer Step 11D reason list. The fixture was narrowed back to the older Step 11C summary/table shape, and the dedicated 11D tests now use a separate explainability-focused fake result.
 - The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 64 tests.
+
+## 2026-04-18 10:06:52 -07:00
+
+Implemented Step 11E for deep links into and out of the trace flow. `src/KennelTrace.Web/Components/Pages/AnimalDetail.razor` now exposes a general `Run trace` action that deep-links to `/trace?sourceAnimalId=...`, and each movement-history row now exposes a `Trace this stay` action that deep-links to `/trace?sourceMovementEventId=...` so explicit source-stay tracing is available directly from the animal detail page. `src/KennelTrace.Web/Components/Pages/FacilityMap.razor` now exposes a selected-location action that deep-links to `/trace?scopeLocationId=...`, and it also accepts `facilityId`, `roomLocationId`, and `selectedLocationId` query-string inputs so trace results can deep-link back into the map with the right room/location context loaded.
+
+Extended the trace-page read seam in `src/KennelTrace.Infrastructure/Features/Tracing/TracePage` instead of reaching into EF from Razor. `ITracePageReadService` / `TracePageReadService` now resolve source-animal summaries, explicit source-stay summaries, and location-scope summaries, and `TraceLocationScopeOption` now carries room-context data that the trace page can use for map links. `src/KennelTrace.Web/Components/Pages/ContactTrace.razor` now accepts `sourceAnimalId`, `sourceMovementEventId`, and `scopeLocationId` query prefills, renders those prefills as explicit summary cards/alerts with clear/reset actions, submits source-stay deep links through the existing Step 10 `ContactTraceRequest.SourceStayId` path, and links impacted-location rows back to `/facility-map` when the page has enough persisted room context to build a clean round-trip URL.
+
+Added focused bUnit coverage in `tests/KennelTrace.Web.Tests` for animal-detail link generation, movement-row source-stay links, facility-map scope links, map query-string round-tripping, trace-page animal/source-stay/scope prefills, trace-page clear/reset behavior, and impacted-location map links. Added targeted SQL-backed integration coverage in `tests/KennelTrace.Tests/TracePageReadServiceTests.cs` for source-animal summary loading, source-stay summary loading, inactive scope-summary loading, and room-context projection for scope options.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test KennelTrace.sln`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- `dotnet build KennelTrace.sln` passed with 0 warnings and 0 errors.
+- The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj` run exceeded the shell timeout before finishing; rerunning the same command with a longer timeout passed with 99 tests.
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 72 tests.
+- `dotnet test KennelTrace.sln` passed across all three test projects, with `tests/KennelTrace.Tests` reporting 99 passing tests, `tests/KennelTrace.Web.Tests` reporting 72 passing tests, and `tests/KennelTrace.PlaywrightTests` reporting 1 passing test plus 1 intentionally skipped environment-dependent test.

@@ -208,6 +208,54 @@ public sealed class AnimalPagesTests : BunitContext
     }
 
     [Fact]
+    public void Animal_Detail_Shows_Run_Trace_Action_With_Source_Animal_Deep_Link()
+    {
+        SetReadOnlyUser();
+        _service.DetailsByAnimalId[42] = DetailWithCurrentPlacement();
+
+        var cut = Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<AnimalDetail>(0);
+                childBuilder.AddAttribute(1, nameof(AnimalDetail.AnimalId), 42);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        var action = cut.Find("[data-testid='animal-run-trace-action']");
+        Assert.Contains("Run trace", action.TextContent);
+        Assert.Equal("/trace?sourceAnimalId=42", action.GetAttribute("href"));
+    }
+
+    [Fact]
+    public void Animal_Detail_Movement_Rows_Show_Source_Stay_Trace_Links()
+    {
+        SetReadOnlyUser();
+        _service.DetailsByAnimalId[42] = DetailWithCurrentPlacement();
+
+        var cut = Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<AnimalDetail>(0);
+                childBuilder.AddAttribute(1, nameof(AnimalDetail.AnimalId), 42);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        var currentStayAction = cut.Find("[data-testid='movement-trace-action-7001']");
+        var priorStayAction = cut.Find("[data-testid='movement-trace-action-7000']");
+
+        Assert.Equal("/trace?sourceMovementEventId=7001", currentStayAction.GetAttribute("href"));
+        Assert.Equal("/trace?sourceMovementEventId=7000", priorStayAction.GetAttribute("href"));
+    }
+
+    [Fact]
     public void Animals_Route_Renders_For_ReadOnly_User()
     {
         SetReadOnlyUser();
