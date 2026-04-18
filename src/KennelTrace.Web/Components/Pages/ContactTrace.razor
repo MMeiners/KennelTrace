@@ -6,6 +6,7 @@
 @using KennelTrace.Infrastructure.Features.Animals.AnimalRecords
 @using KennelTrace.Infrastructure.Features.Tracing.ContactTracing
 @using KennelTrace.Infrastructure.Features.Tracing.TracePage
+@using KennelTrace.Web.Features.Tracing
 @attribute [Authorize(Roles = $"{KennelTraceRoles.ReadOnly},{KennelTraceRoles.Admin}")]
 @inject IAnimalReadService AnimalReadService
 @inject IContactTraceService ContactTraceService
@@ -220,35 +221,138 @@
                 <MudTabPanel Text="Impacted Locations">
                     @if (_traceResult is null || _traceResult.ImpactedLocations.Count == 0)
                     {
-                        <MudText Typo="Typo.body2" data-testid="trace-locations-placeholder">
-                            No impacted locations to show in this slice.
-                        </MudText>
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-locations-empty-state">
+                            No impacted locations were returned for this trace.
+                        </MudAlert>
                     }
                     else
                     {
-                        <MudText Typo="Typo.body2" data-testid="trace-locations-placeholder">
-                            @($"{_traceResult.ImpactedLocations.Count} impacted locations stored on the page. Detailed location rendering is deferred to a later slice.")
-                        </MudText>
+                        <MudTable Items="_traceResult.ImpactedLocations" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" data-testid="trace-locations-table">
+                            <HeaderContent>
+                                <MudTh>Location</MudTh>
+                                <MudTh>Match</MudTh>
+                                <MudTh>Path</MudTh>
+                                <MudTh>Reasons</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                @{
+                                    var locationOption = GetLocationOption(context.LocationId);
+                                    var scopeLocationOption = context.ScopeLocationId is null
+                                        ? null
+                                        : GetLocationOption(context.ScopeLocationId.Value);
+                                }
+                                <MudTd DataLabel="Location">
+                                    <MudText Typo="Typo.body1" data-testid="@($"trace-location-name-{context.LocationId}")">
+                                        @GetLocationPrimaryLabel(locationOption, context.LocationId)
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="text-muted">
+                                        @GetLocationSecondaryLabel(locationOption)
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Match">
+                                    <MudText Typo="Typo.body2">@TraceResultPresenter.GetMatchLabel(context.MatchKind)</MudText>
+                                    @if (scopeLocationOption is not null)
+                                    {
+                                        <MudText Typo="Typo.body2" Class="text-muted" data-testid="@($"trace-location-scope-{context.LocationId}")">
+                                            Scoped by @GetLocationPrimaryLabel(scopeLocationOption, scopeLocationOption.LocationId)
+                                        </MudText>
+                                    }
+                                </MudTd>
+                                <MudTd DataLabel="Path">
+                                    <MudText Typo="Typo.body2">
+                                        @(context.TraversalDepth == 0 ? "Direct match" : $"Depth {context.TraversalDepth}")
+                                    </MudText>
+                                    @if (context.ViaLinkType is not null)
+                                    {
+                                        <MudText Typo="Typo.body2" Class="text-muted">
+                                            @TraceResultPresenter.GetLinkLabel(context.ViaLinkType)
+                                        </MudText>
+                                    }
+                                </MudTd>
+                                <MudTd DataLabel="Reasons">
+                                    <MudChipSet T="string">
+                                        @foreach (var reasonCode in context.ReasonCodes)
+                                        {
+                                            <MudChip T="string"
+                                                     Size="Size.Small"
+                                                     Variant="Variant.Outlined"
+                                                     data-testid="@($"trace-location-reason-{context.LocationId}-{reasonCode}")">
+                                                @TraceResultPresenter.GetReasonLabel(reasonCode)
+                                            </MudChip>
+                                        }
+                                    </MudChipSet>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
                     }
                 </MudTabPanel>
                 <MudTabPanel Text="Impacted Animals">
                     @if (_traceResult is null || _traceResult.ImpactedAnimals.Count == 0)
                     {
-                        <MudText Typo="Typo.body2" data-testid="trace-animals-placeholder">
-                            No impacted animals to show in this slice.
-                        </MudText>
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-testid="trace-animals-empty-state">
+                            No impacted animals were returned for this trace.
+                        </MudAlert>
                     }
                     else
                     {
-                        <MudText Typo="Typo.body2" data-testid="trace-animals-placeholder">
-                            @($"{_traceResult.ImpactedAnimals.Count} impacted animals stored on the page. Detailed animal rendering is deferred to a later slice.")
-                        </MudText>
+                        <MudTable Items="_traceResult.ImpactedAnimals" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" data-testid="trace-animals-table">
+                            <HeaderContent>
+                                <MudTh>Animal</MudTh>
+                                <MudTh>Impacted location</MudTh>
+                                <MudTh>Overlap context</MudTh>
+                                <MudTh>Reasons</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                @{
+                                    var impactedLocationOption = GetLocationOption(context.ImpactedLocationId);
+                                }
+                                <MudTd DataLabel="Animal">
+                                    <MudLink Href="@($"/animals/{context.AnimalId}")"
+                                             data-testid="@($"trace-animal-link-{context.AnimalId}")">
+                                        @GetAnimalPrimaryLabel(context)
+                                    </MudLink>
+                                    <MudText Typo="Typo.body2" Class="text-muted">
+                                        @context.AnimalNumber.Value
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Impacted location">
+                                    <MudText Typo="Typo.body2" data-testid="@($"trace-animal-location-{context.AnimalId}")">
+                                        @GetLocationPrimaryLabel(impactedLocationOption, context.ImpactedLocationId)
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="text-muted">
+                                        @GetLocationSecondaryLabel(impactedLocationOption)
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Overlap context">
+                                    @foreach (var overlap in context.OverlappingStays)
+                                    {
+                                        var overlapLocationOption = GetLocationOption(overlap.StayLocationId);
+                                        <div class="mb-1" data-testid="@($"trace-animal-overlap-{context.AnimalId}-{overlap.OverlappingStayId}")">
+                                            <MudText Typo="Typo.body2">
+                                                @($"{TraceResultPresenter.FormatUtc(overlap.OverlapStartUtc)} to {TraceResultPresenter.FormatUtc(overlap.OverlapEndUtc)}")
+                                            </MudText>
+                                            <MudText Typo="Typo.body2" Class="text-muted">
+                                                @($"{GetLocationPrimaryLabel(overlapLocationOption, overlap.StayLocationId)} stay {TraceResultPresenter.FormatUtc(overlap.StayStartUtc)} to {TraceResultPresenter.FormatUtc(overlap.StayEndUtc)}")
+                                            </MudText>
+                                        </div>
+                                    }
+                                </MudTd>
+                                <MudTd DataLabel="Reasons">
+                                    <MudChipSet T="string">
+                                        @foreach (var reasonCode in context.ReasonCodes)
+                                        {
+                                            <MudChip T="string"
+                                                     Size="Size.Small"
+                                                     Variant="Variant.Outlined"
+                                                     data-testid="@($"trace-animal-reason-{context.AnimalId}-{reasonCode}")">
+                                                @TraceResultPresenter.GetReasonLabel(reasonCode)
+                                            </MudChip>
+                                        }
+                                    </MudChipSet>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
                     }
-                </MudTabPanel>
-                <MudTabPanel Text="Why Included">
-                    <MudText Typo="Typo.body2" data-testid="trace-reasons-placeholder">
-                        Reason details remain placeholder-level here. This slice preserves the successful trace result for later rendering work.
-                    </MudText>
                 </MudTabPanel>
             </MudTabs>
         }
@@ -275,6 +379,7 @@
     private string? _serviceErrorMessage;
     private ContactTraceResult? _traceResult;
     private TraceRunSummary? _lastRunSummary;
+    private Dictionary<int, TraceLocationScopeOption> _locationOptionsById = [];
 
     private IReadOnlyList<TraceLocationScopeOption> FilteredScopeOptions =>
         _selectedScopeFacilityId is null
@@ -297,6 +402,9 @@
                 .DistinctBy(x => x.FacilityId)
                 .OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            _locationOptionsById = _scopeOptions
+                .GroupBy(x => x.LocationId)
+                .ToDictionary(x => x.Key, x => x.First());
         }
         catch (Exception exception)
         {
@@ -542,10 +650,28 @@
         $"{FormatUtc(startUtc)} to {FormatUtc(endUtc)}";
 
     private static string FormatUtc(DateTime value) =>
-        value.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture);
+        TraceResultPresenter.FormatUtc(value);
 
     private static string GetHighLevelCountsSummary(int sourceStayCount, int impactedLocationCount, int impactedAnimalCount) =>
         $"{sourceStayCount} source stay(s), {impactedLocationCount} impacted location(s), {impactedAnimalCount} impacted animal(s).";
+
+    private TraceLocationScopeOption? GetLocationOption(int locationId) =>
+        _locationOptionsById.GetValueOrDefault(locationId);
+
+    private static string GetLocationPrimaryLabel(TraceLocationScopeOption? locationOption, int locationId) =>
+        locationOption is null
+            ? $"Location #{locationId}"
+            : $"{locationOption.LocationName} ({locationOption.LocationCode.Value})";
+
+    private static string GetLocationSecondaryLabel(TraceLocationScopeOption? locationOption) =>
+        locationOption is null
+            ? "Persisted location details were not available on the trace page."
+            : $"{locationOption.LocationType} in {locationOption.FacilityName} ({locationOption.FacilityCode.Value})";
+
+    private static string GetAnimalPrimaryLabel(ImpactedAnimalResult animal) =>
+        string.IsNullOrWhiteSpace(animal.AnimalName)
+            ? animal.AnimalNumber.Value
+            : $"{animal.AnimalNumber.Value} - {animal.AnimalName}";
 
     private RenderFragment RenderFieldError(string fieldName) => builder =>
     {

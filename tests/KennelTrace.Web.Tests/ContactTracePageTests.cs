@@ -261,9 +261,10 @@ public sealed class ContactTracePageTests : BunitContext
             Assert.Contains("A-1 - Milo", summary);
             Assert.Contains("2026-04-16 00:00 UTC to 2026-04-17 00:00 UTC", summary);
             Assert.Contains("Room A (ROOM-A) - Room", summary);
-            Assert.Contains("1 source stay(s), 1 impacted location(s), 1 impacted animal(s).", summary);
-            Assert.Contains("1 impacted locations stored on the page.", cut.Find("[data-testid='trace-locations-placeholder']").TextContent);
+            Assert.Contains("1 source stay(s), 2 impacted location(s), 1 impacted animal(s).", summary);
+            Assert.NotNull(cut.Find("[data-testid='trace-locations-table']"));
             Assert.NotNull(cut.Find("[data-testid='trace-result-tabs']"));
+            Assert.DoesNotContain("Why Included", cut.Markup);
         });
     }
 
@@ -283,9 +284,12 @@ public sealed class ContactTracePageTests : BunitContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("No impacted locations or animals were found for the selected trace input.", cut.Find("[data-testid='trace-empty-state']").TextContent);
-            Assert.Contains("No impacted locations to show in this slice.", cut.Find("[data-testid='trace-locations-placeholder']").TextContent);
+            Assert.Contains("No impacted locations were returned for this trace.", cut.Find("[data-testid='trace-locations-empty-state']").TextContent);
             Assert.Contains("1 source stay(s), 0 impacted location(s), 0 impacted animal(s).", cut.Find("[data-testid='trace-success-summary']").TextContent);
         });
+
+        ActivateTab(cut, "Impacted Animals");
+        Assert.Contains("No impacted animals were returned for this trace.", cut.Find("[data-testid='trace-animals-empty-state']").TextContent);
     }
 
     [Fact]
@@ -307,6 +311,66 @@ public sealed class ContactTracePageTests : BunitContext
                 cut.Find("[data-testid='trace-service-error-state']").TextContent));
     }
 
+    [Fact]
+    public void Successful_Run_Renders_Impacted_Location_Row_Content_And_Reason_Chips()
+    {
+        SetReadOnlyUser();
+
+        var cut = Render<ContactTrace>();
+        SelectProfileAndAnimal(cut);
+        cut.Find("[data-testid='trace-window-start']").Input("2026-04-16T00:00");
+        cut.Find("[data-testid='trace-window-end']").Input("2026-04-17T00:00");
+        cut.Find("[data-testid='trace-scope-location-select']").Change("101");
+
+        cut.Find("[data-testid='trace-run-button']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var locationTable = cut.Find("[data-testid='trace-locations-table']").TextContent;
+            Assert.Contains("Room A (ROOM-A)", locationTable);
+            Assert.Contains("Room in Phoenix Shelter (PHX)", locationTable);
+            Assert.Contains("Exact location", locationTable);
+            Assert.Contains("Direct match", locationTable);
+            Assert.Contains("Same location", cut.Find("[data-testid='trace-location-reason-101-SameLocation']").TextContent);
+
+            Assert.Contains("Kennel 1 (KEN-1)", locationTable);
+            Assert.Contains("Scoped descendant", locationTable);
+            Assert.Contains("Scoped by Room A (ROOM-A)", cut.Find("[data-testid='trace-location-scope-102']").TextContent);
+            Assert.Contains("Depth 1", locationTable);
+            Assert.Contains("Adjacent right", locationTable);
+            Assert.Contains("Adjacent", cut.Find("[data-testid='trace-location-reason-102-Adjacent']").TextContent);
+        });
+    }
+
+    [Fact]
+    public void Successful_Run_Renders_Impacted_Animal_Row_Content_With_Stable_Detail_Link()
+    {
+        SetReadOnlyUser();
+
+        var cut = Render<ContactTrace>();
+        SelectProfileAndAnimal(cut);
+        cut.Find("[data-testid='trace-window-start']").Input("2026-04-16T00:00");
+        cut.Find("[data-testid='trace-window-end']").Input("2026-04-17T00:00");
+
+        cut.Find("[data-testid='trace-run-button']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            ActivateTab(cut, "Impacted Animals");
+
+            var animalLink = cut.Find("[data-testid='trace-animal-link-77']");
+            Assert.Equal("/animals/77", animalLink.GetAttribute("href"));
+            Assert.Contains("A-77 - Luna", animalLink.TextContent);
+
+            var animalTable = cut.Find("[data-testid='trace-animals-table']").TextContent;
+            Assert.Contains("Room A (ROOM-A)", animalTable);
+            Assert.Contains("2026-04-16 06:00 UTC to 2026-04-16 18:00 UTC", animalTable);
+            Assert.Contains("Kennel 1 (KEN-1) stay 2026-04-16 06:00 UTC to Open stay", animalTable);
+            Assert.Contains("Same location", cut.Find("[data-testid='trace-animal-reason-77-SameLocation']").TextContent);
+            Assert.Contains("Adjacent", cut.Find("[data-testid='trace-animal-reason-77-Adjacent']").TextContent);
+        });
+    }
+
     private void SetReadOnlyUser() =>
         _authenticationStateProvider.SetUser("readonly-user", KennelTraceRoles.ReadOnly);
 
@@ -319,6 +383,13 @@ public sealed class ContactTracePageTests : BunitContext
     private static DateTime ParseDateTimeLocal(string? value) =>
         DateTime.ParseExact(value!, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None);
 
+    private static void ActivateTab(IRenderedComponent<ContactTrace> cut, string tabLabel)
+    {
+        var tab = cut.FindAll("[role='tab']")
+            .First(element => string.Equals(element.TextContent.Trim(), tabLabel, StringComparison.Ordinal));
+        tab.Click();
+    }
+
     private static ContactTraceResult CreateSuccessResult()
     {
         var overlap = new ImpactedAnimalStayOverlap(
@@ -327,27 +398,41 @@ public sealed class ContactTracePageTests : BunitContext
             sourceStartUtc: new DateTime(2026, 4, 16, 0, 0, 0, DateTimeKind.Utc),
             sourceEndUtc: new DateTime(2026, 4, 17, 0, 0, 0, DateTimeKind.Utc),
             overlappingStayId: 9100,
-            stayLocationId: 101,
+            stayLocationId: 102,
             stayStartUtc: new DateTime(2026, 4, 16, 6, 0, 0, DateTimeKind.Utc),
-            stayEndUtc: new DateTime(2026, 4, 16, 18, 0, 0, DateTimeKind.Utc),
+            stayEndUtc: null,
             overlapStartUtc: new DateTime(2026, 4, 16, 6, 0, 0, DateTimeKind.Utc),
             overlapEndUtc: new DateTime(2026, 4, 16, 18, 0, 0, DateTimeKind.Utc));
 
-        var reason = new ImpactedLocationReason(
+        var sameLocationReason = new ImpactedLocationReason(
             TraceReasonCode.SameLocation,
             sourceLocationId: 101,
             sourceStayId: 9001);
+
+        var adjacentReason = new ImpactedLocationReason(
+            TraceReasonCode.Adjacent,
+            sourceLocationId: 101,
+            sourceStayId: 9001,
+            traversalDepth: 1,
+            viaLinkType: LinkType.AdjacentRight);
 
         return new ContactTraceResult(
             diseaseTraceProfileId: 41,
             sourceStayIds: [9001],
             impactedLocations:
             [
-                new ImpactedLocationResult(101, [TraceReasonCode.SameLocation])
+                new ImpactedLocationResult(101, [TraceReasonCode.SameLocation]),
+                new ImpactedLocationResult(
+                    locationId: 102,
+                    reasonCodes: [TraceReasonCode.Adjacent],
+                    matchKind: ImpactedLocationMatchKind.ScopedLocation,
+                    scopeLocationId: 101,
+                    traversalDepth: 1,
+                    viaLinkType: LinkType.AdjacentRight)
             ],
             impactedAnimals:
             [
-                new ImpactedAnimalResult(77, new AnimalCode("A-77"), "Luna", 101, [overlap], [reason])
+                new ImpactedAnimalResult(77, new AnimalCode("A-77"), "Luna", 101, [overlap], [sameLocationReason, adjacentReason])
             ]);
     }
 

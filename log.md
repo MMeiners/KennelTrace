@@ -451,3 +451,26 @@ Verification result in this shell:
 - The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run built successfully but failed two new `ContactTracePageTests` cases because `MudTabs` only rendered the active tab panel content in bUnit and the initial page markup used an analyzer-unfriendly `PanelClass` attribute.
 - The second `dotnet build KennelTrace.sln` passed with 0 warnings and 0 errors.
 - The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 59 tests.
+
+## 2026-04-18 09:12:38 -07:00
+
+Implemented Step 11C for the `/trace` result view without changing the existing trace contracts or adding Step 11D behavior. `src/KennelTrace.Web/Components/Pages/ContactTrace.razor` now renders only the two requested `MudTabs` panels, both table-first: `Impacted Locations` shows persisted location identity from the already-loaded scope metadata, exact-vs-scoped match metadata, traversal depth/link-path details when exposed by the DTOs, reason chips, and honest empty states; `Impacted Animals` shows stable animal identity, links each row to `/animals/{animalId:int}`, shows impacted-location context plus overlap/open-stay timing when available from the existing overlap DTOs, and renders centralized reason chips instead of duplicating enum-label logic in Razor. Added the small presenter helper `src/KennelTrace.Web/Features/Tracing/TraceResultPresenter.cs` to keep reason/link/match labels centralized for this slice, and left impacted locations read-only because the current page state does not expose a clean deep link into the existing `/facility-map` workflow.
+
+Extended `tests/KennelTrace.Web.Tests/ContactTracePageTests.cs` with focused bUnit coverage for the Step 11C result rendering: success-state tabs, impacted-location table content, scoped metadata, reason-chip rendering, honest empty states in both tabs, stable animal-detail links, and representative overlap/location row content. The fake trace result used by the tests now covers both exact and scoped location matches plus an open overlapping stay so the UI assertions exercise the requested scan-friendly output.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- The first `dotnet build KennelTrace.sln` failed with a transient `CS2012` file lock on `src\KennelTrace.Domain\obj\Debug\net10.0\KennelTrace.Domain.dll` from `VBCSCompiler`.
+- The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed because the new `MudChipSet` instances in `ContactTrace.razor` needed an explicit `T="string"` type argument.
+- The second `dotnet build KennelTrace.sln` passed with one transient `MSB3026` retry warning while copying `KennelTrace.Web.exe`, then completed successfully.
+- The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed in two bUnit cases because the initial tab-activation helper looked for generic `button` elements instead of MudBlazor tab headers with `role="tab"`.
+- The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` passed with 61 tests.
