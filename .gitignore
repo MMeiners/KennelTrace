@@ -7,3 +7,8 @@ riderModule.iml
 /.idea/.idea.KennelExperiment/.idea/workspace.xml
 /.tools/
 /.idea/.idea.KennelTrace/.idea/dataSources.xml
+/src/KennelTrace.Web/artifacts/
+/.codex-test/
+/src/KennelTrace.Infrastructure/artifacts/
+/src/KennelTrace.Domain/artifacts/
+/tests/KennelTrace.Web.Tests/artifacts/

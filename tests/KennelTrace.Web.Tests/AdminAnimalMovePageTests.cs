@@ -113,6 +113,33 @@ public sealed class AdminAnimalMovePageTests : BunitContext
     }
 
     [Fact]
+    public void Save_Accepts_DatetimeLocal_Value_With_Seconds()
+    {
+        _readService.DetailsByAnimalId[42] = DetailWithCurrentPlacement("KEN-1", "Kennel 1", "Transfer from intake");
+        _movementAdminService.OnSave = request => RecordAnimalStayResult.Success(new AnimalMovementAdminRecord(
+            9003,
+            request.AnimalId,
+            request.LocationId,
+            request.StartUtc,
+            request.EndUtc,
+            request.MovementReason,
+            "admin-user",
+            request.Notes,
+            DateTime.UtcNow,
+            DateTime.UtcNow));
+
+        var cut = Render<AdminAnimalMove>(parameters => parameters.Add(x => x.AnimalId, 42));
+
+        cut.Find("[data-testid='animal-move-location-input']").Change("100");
+        cut.Find("[data-testid='animal-move-start-input']").Input("2026-04-17T12:30:00");
+        cut.Find("[data-testid='animal-move-save-button']").Click();
+
+        var request = Assert.Single(_movementAdminService.SaveRequests);
+        Assert.Equal(new DateTime(2026, 4, 17, 12, 30, 0, DateTimeKind.Utc), request.StartUtc);
+        Assert.DoesNotContain("StartUtc must be a valid UTC date and time.", cut.Markup);
+    }
+
+    [Fact]
     public void Detail_Page_Shows_Updated_Current_Placement_After_Save()
     {
         _readService.DetailsByAnimalId[42] = DetailWithCurrentPlacement("KEN-1", "Kennel 1", "Transfer from intake");

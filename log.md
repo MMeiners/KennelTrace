@@ -621,3 +621,23 @@ Verification result in this shell:
 - `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --no-build` passed with `79` tests.
 - `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 13:42:38 -07:00`.
 - `git status --short` showed the expected worktree changes for `README.md`, the admin-import UI/service files, and the focused tests/import-service updates.
+
+## 2026-04-18 14:46:28 -07:00
+
+Fixed the admin animal move form so `StartUtc` and `EndUtc` accept standard `datetime-local` values with optional seconds and fractional seconds instead of only the minute-only format. This resolves the record-move validation failure where valid browser-submitted values could still show `StartUtc must be a valid UTC date and time.` Added a focused bUnit regression test in `tests/KennelTrace.Web.Tests/AdminAnimalMovePageTests.cs` that submits a seconds-bearing value and verifies the save request is accepted as UTC.
+
+Also cleaned up temporary isolated test-build output that had been created under project directories and was being compiled as normal source, which caused duplicate assembly attribute build errors. Removed the temporary `.codex-test` and per-project `artifacts` folders and verified the repository returned to a clean normal build state.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --filter AdminAnimalMove`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --filter AdminAnimalMove -p:BaseOutputPath=E:\RiderProjects\KennelExperiment\.codex-test\out\ -p:BaseIntermediateOutputPath=E:\RiderProjects\KennelExperiment\.codex-test\obj\ -v q`
+- `dotnet build KennelTrace.sln -v q`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+
+Verification result in this shell:
+
+- The first targeted `dotnet test ... --filter AdminAnimalMove` run failed because a running `KennelTrace.Web` process had the default `bin\Debug` outputs locked.
+- The isolated-output targeted test run passed, but a prior isolated-output attempt that wrote temp `artifacts\testobj` folders under project directories caused duplicate assembly attribute errors in subsequent normal builds.
+- After removing the temporary `.codex-test` and project `artifacts` folders, `dotnet build KennelTrace.sln -v q` passed with `0` warnings and `0` errors.
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 14:46:28 -07:00`.

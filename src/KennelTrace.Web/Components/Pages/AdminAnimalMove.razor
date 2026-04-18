@@ -261,9 +261,17 @@ else
     private string GetAnimalDetailUrl() =>
         $"/animals/{AnimalId}";
 
+    private static readonly string[] DateTimeLocalFormats =
+    [
+        "yyyy-MM-ddTHH:mm",
+        "yyyy-MM-ddTHH:mm:ss",
+        "yyyy-MM-ddTHH:mm:ss.FFF",
+        "yyyy-MM-ddTHH:mm:ss.FFFFFFF"
+    ];
+
     private static bool TryParseUtcDateTime(string? value, out DateTime parsedValue)
     {
-        if (DateTime.TryParseExact(value, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        if (DateTime.TryParseExact(value, DateTimeLocalFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
         {
             parsedValue = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
             return true;
