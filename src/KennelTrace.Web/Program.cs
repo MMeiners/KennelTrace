@@ -3,6 +3,7 @@ using KennelTrace.Web.Components;
 using KennelTrace.Web.Features.Animals.Admin;
 using KennelTrace.Web.Development;
 using KennelTrace.Web.Features.Facilities.Admin;
+using KennelTrace.Web.Features.Imports.Admin;
 using KennelTrace.Web.Features.Locations.Admin;
 using KennelTrace.Web.Security;
 using MudBlazor.Services;
@@ -18,6 +19,8 @@ builder.Services.AddKennelTraceSqlServer(builder.Configuration);
 builder.Services.AddScoped<IAnimalAdminService, AnimalAdminService>();
 builder.Services.AddScoped<IAnimalMovementAdminService, AnimalMovementAdminService>();
 builder.Services.AddScoped<IFacilityAdminService, FacilityAdminService>();
+builder.Services.AddScoped<IImportAdminHistoryReadService, ImportAdminHistoryReadService>();
+builder.Services.AddScoped<IImportAdminService, ImportAdminService>();
 builder.Services.AddScoped<ILocationAdminService, LocationAdminService>();
 builder.Services.AddScoped<ILocationLinkAdminService, LocationLinkAdminService>();
 

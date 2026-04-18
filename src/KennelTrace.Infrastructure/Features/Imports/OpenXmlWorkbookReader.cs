@@ -37,7 +37,16 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
         ArgumentException.ThrowIfNullOrWhiteSpace(workbookPath);
         ArgumentNullException.ThrowIfNull(issues);
 
-        using var archive = ZipFile.OpenRead(workbookPath);
+        using var stream = File.OpenRead(workbookPath);
+        return ReadAsync(stream, issues, cancellationToken);
+    }
+
+    public Task<ImportWorkbook> ReadAsync(Stream workbookStream, ICollection<ImportValidationIssueRecord> issues, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(workbookStream);
+        ArgumentNullException.ThrowIfNull(issues);
+
+        using var archive = new ZipArchive(workbookStream, ZipArchiveMode.Read, leaveOpen: true);
         var workbookDocument = XDocument.Load(ReadEntry(archive, "xl/workbook.xml"));
         var relationshipsDocument = XDocument.Load(ReadEntry(archive, "xl/_rels/workbook.xml.rels"));
 

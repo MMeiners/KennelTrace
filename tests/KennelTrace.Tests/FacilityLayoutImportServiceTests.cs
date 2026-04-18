@@ -52,6 +52,26 @@ public sealed class FacilityLayoutImportServiceTests
     }
 
     [Fact]
+    public async Task Upload_Request_Succeeds_Without_Writing_To_Disk()
+    {
+        var logger = new RecordingImportBatchLogger(212);
+        var service = new FacilityLayoutImportService(_workbookReader, _validator, logger);
+        await using var workbookStream = File.OpenRead(GetFixturePath("PHX_MAIN_Layout_20260412.xlsx"));
+
+        var result = await service.ValidateAsync(new FacilityLayoutImportUploadRequest(
+            workbookStream,
+            "PHX_MAIN_Layout_20260412.xlsx",
+            "uploader"));
+
+        Assert.True(result.IsValid);
+        Assert.Equal("PHX_MAIN_Layout_20260412.xlsx", result.SourceFileName);
+        Assert.Equal(212, result.ImportBatchId);
+        Assert.NotNull(logger.LastRequest);
+        Assert.Equal("PHX_MAIN_Layout_20260412.xlsx", logger.LastRequest!.SourceFileName);
+        Assert.Equal("uploader", logger.LastRequest.ExecutedByUserId);
+    }
+
+    [Fact]
     public async Task Invalid_Row_Workbook_Fails_With_Explicit_Row_Level_Errors()
     {
         var service = new FacilityLayoutImportService(_workbookReader, _validator, new RecordingImportBatchLogger(303));

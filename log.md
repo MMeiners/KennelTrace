@@ -567,3 +567,31 @@ Verification result in this shell:
 - The first parallel `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --filter ContactTracePageTests` attempt hit a transient `CS2012` file-lock error on `KennelTrace.Domain.dll`; rerunning the same command immediately afterward passed.
 - The final `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj --filter ContactTracePageTests` passed with 22 tests.
 - `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 11:45:56 -07:00`.
+
+## 2026-04-18 13:24:41 -07:00
+
+Implemented the thin safe admin upload UI slice for the existing workbook import pipeline. Added an admin-only `/admin/imports` page in `src/KennelTrace.Web/Components/Pages/AdminImports.razor`, an `Admin Imports` nav link, and two thin services under `src/KennelTrace.Web/Features/Imports/Admin`: one page-focused persisted-history reader and one admin orchestration service that reuses the existing `FacilityLayoutImportService` in validate-only mode and enforces server-side admin authorization. The page accepts one canonical `.xlsx` workbook through `InputFile`, shows the required/optional sheet hint, renders the latest batch summary plus row-level issues in a table-first view, and lists recent persisted import batches with honest empty states. No commit action, wizard flow, CSV support, raw workbook storage, or Razor-side workbook parsing was added.
+
+Extended the existing import pipeline only where needed to support the UI safely without temp-file storage. `FacilityLayoutImportService` and `OpenXmlWorkbookReader` now support a stream-based validate-only request path via `FacilityLayoutImportUploadRequest`, while the original path-based request flow and existing validate/commit behavior remain in place. Added focused regression coverage for the new stream-upload request in `tests/KennelTrace.Tests/FacilityLayoutImportServiceTests.cs`, plus focused bUnit coverage in `tests/KennelTrace.Web.Tests/AdminImportsPageTests.cs` and `tests/KennelTrace.Web.Tests/AdminImportsRouteTests.cs` for route authorization, empty states, file-required/wrong-extension handling, successful validate-only result rendering, recent-history rendering, and nav visibility.
+
+Commands actually run in this shell for this slice:
+
+- `dotnet build KennelTrace.sln`
+- `dotnet build KennelTrace.sln`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter FacilityLayoutImportServiceTests`
+- `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter FacilityLayoutImportServiceTests`
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"`
+- `git status --short`
+
+Verification result in this shell:
+
+- The first `dotnet build KennelTrace.sln` run failed because the new bUnit upload tests initially used the wrong `InputFileContent` constructor shape for the installed `bUnit` version.
+- The second `dotnet build KennelTrace.sln` passed with 0 warnings and 0 errors.
+- The first `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run failed in one new admin-imports page test because the wrong-extension assertion needed to wait for the async `InputFile` change cycle.
+- The second `dotnet test tests/KennelTrace.Web.Tests/KennelTrace.Web.Tests.csproj` run passed with 79 tests.
+- The first `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter FacilityLayoutImportServiceTests` run passed with 5 tests before the new upload-request regression test was added.
+- The second `dotnet test tests/KennelTrace.Tests/KennelTrace.Tests.csproj --filter FacilityLayoutImportServiceTests` run passed with 6 tests.
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"` returned `2026-04-18 13:24:41 -07:00`.
+- `git status --short` showed the expected import/admin UI worktree changes for the new page, services, tests, and supporting import-service updates.

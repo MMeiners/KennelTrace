@@ -50,6 +50,38 @@ public sealed class FacilityLayoutImportService
         return await LogWithoutCommitAsync(request, report, issues, startedUtc, sourceFileName, sourceFileHash, cancellationToken);
     }
 
+    public async Task<FacilityLayoutImportResult> ValidateAsync(
+        FacilityLayoutImportUploadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.WorkbookStream);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.SourceFileName);
+
+        var startedUtc = DateTime.UtcNow;
+        var issues = new List<ImportValidationIssueRecord>();
+        var workbookBytes = await ReadAllBytesAsync(request.WorkbookStream, cancellationToken);
+
+        await using var workbookStream = new MemoryStream(workbookBytes, writable: false);
+        var workbook = await _workbookReader.ReadAsync(workbookStream, issues, cancellationToken);
+        _validator.Validate(workbook, issues);
+
+        var report = new ImportValidationReport(workbook, issues);
+        var sourceFileName = Path.GetFileName(request.SourceFileName);
+        var sourceFileHash = ComputeSha256(workbookBytes);
+        var fileRequest = new FacilityLayoutImportRequest(
+            WorkbookPath: sourceFileName,
+            ExecutedByUserId: request.ExecutedByUserId,
+            RunMode: request.RunMode);
+
+        if (request.RunMode == ImportBatchRunMode.Commit && report.IsValid)
+        {
+            throw new InvalidOperationException("Stream-based uploads are limited to validate-only mode in the current admin UI slice.");
+        }
+
+        return await LogWithoutCommitAsync(fileRequest, report, issues, startedUtc, sourceFileName, sourceFileHash, cancellationToken);
+    }
+
     private async Task<FacilityLayoutImportResult> CommitAsync(
         FacilityLayoutImportRequest request,
         ImportWorkbook workbook,
@@ -448,6 +480,24 @@ public sealed class FacilityLayoutImportService
         using var stream = File.OpenRead(workbookPath);
         var hash = SHA256.HashData(stream);
         return Convert.ToHexString(hash);
+    }
+
+    private static string ComputeSha256(byte[] workbookBytes)
+    {
+        var hash = SHA256.HashData(workbookBytes);
+        return Convert.ToHexString(hash);
+    }
+
+    private static async Task<byte[]> ReadAllBytesAsync(Stream workbookStream, CancellationToken cancellationToken)
+    {
+        if (workbookStream is MemoryStream memoryStream && memoryStream.TryGetBuffer(out var buffer))
+        {
+            return buffer.Array![..buffer.Count];
+        }
+
+        using var bufferedStream = new MemoryStream();
+        await workbookStream.CopyToAsync(bufferedStream, cancellationToken);
+        return bufferedStream.ToArray();
     }
 
     private sealed record ExpandedLocationLink(
